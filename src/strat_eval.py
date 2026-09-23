@@ -111,14 +111,16 @@ if __name__ == '__main__':
     from src.strategies.accurate_momentum import master_accurate_momentum
     from src.strategies.vol_adjusted_momentum import master_vol_adjusted_momentum
     from src.strategies.momentum_fixed_horizon import master_momentum_fixed_horizon
+    from src.strategies.trend_reversal import master_trend_reversal
 
     ticker = 'BTC-USD'
 
+# Configs obtained from grid_search.py 
     barrier_params = {
         'interval': '5m',
         'change_period': 240,
-        'in_cond': 0.01,
-        'take_profit': 1.015,
+        'in_cond': 0.02,
+        'take_profit': 1.02,
         'stop_loss': 0.985,
     }
 
@@ -130,7 +132,7 @@ if __name__ == '__main__':
             'interval': '5m',
             'change_period': 240,
             'z_in': 1.8,
-            'tp_sigma': 1.6,
+            'tp_sigma': 2.0,
             'sl_sigma': 1.6,
             'vol_window': 576,
             'tau_mult': 3.0,
@@ -141,6 +143,14 @@ if __name__ == '__main__':
             'change_period': 240,
             'z_in': 1.8,
             'horizon': 22
+        }},
+        'trend_reversal': {'fn': master_trend_reversal, 'params':{
+            'interval': '5m', 
+            'fast_window': 60,
+            'slow_window': 180,
+            'in_cond': 1.0,
+            'out_cond': -0.5,
+            'burn_spans': 3
         }}
     }
 
@@ -155,6 +165,8 @@ if __name__ == '__main__':
 
     results = {}
     for name, cfg in strat_params.items():
+        if name in {'basic', 'refined', 'fixed_horizon'}:
+            continue
         out = cfg['fn'](ticker=ticker, **cfg['params'])
 
         # basic/refined return 3 values, accurate/vol_adjusted return 4
@@ -173,5 +185,3 @@ if __name__ == '__main__':
         win_pct = sum(1 for p in profits if p > 0) / len(profits) if profits else 0.0
         print(f'{name:<14}{len(profits):>8}{win_pct:>10.1%}'
               f'{float(total_profit):>14,.0f}{float(final_return):>12.3f}')
-
-# %%
