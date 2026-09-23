@@ -16,7 +16,7 @@ def master_basic_momentum(
     ):
     '''
     Input: OHLCV dataframe for specific ticker, hyperparameters for the basic momentum strategy
-    Output: Tuple of profits per trade, returns per trade, total profit, cumulative return, optional plot
+    Output: Tuple of dataframe, trade tuples (price_in, price_out) and respective dates
     '''
 
     df = raw_data[ticker]
@@ -53,7 +53,7 @@ def basic_momentum(
     ) -> tuple:
     '''
     Input: Dataframe, momentum condition to enter a trade, take_profit and stop_loss conditions
-    Output: A tuple of (price_in, price_out) for each trade entered, respective returns and dates (date_in, date_out)
+    Output: A tuple of (price_in, price_out) for each trade entered, respective dates (date_in, date_out)
     '''
 
     in_trade = False

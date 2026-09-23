@@ -110,6 +110,7 @@ if __name__ == '__main__':
     from src.strategies.refined_momentum import master_refined_momentum
     from src.strategies.accurate_momentum import master_accurate_momentum
     from src.strategies.vol_adjusted_momentum import master_vol_adjusted_momentum
+    from src.strategies.momentum_fixed_horizon import master_momentum_fixed_horizon
 
     ticker = 'BTC-USD'
 
@@ -128,13 +129,19 @@ if __name__ == '__main__':
         'vol_adjusted': {'fn': master_vol_adjusted_momentum, 'params': {
             'interval': '5m',
             'change_period': 240,
-            'z_ind': 1.8,
+            'z_in': 1.8,
             'tp_sigma': 1.6,
             'sl_sigma': 1.6,
             'vol_window': 576,
             'tau_mult': 3.0,
             'min_sigma': 0.0,
         }},
+        'fixed_horizon': {'fn': master_momentum_fixed_horizon, 'params': {
+            'interval': '5m',
+            'change_period': 240,
+            'z_in': 1.8,
+            'horizon': 22
+        }}
     }
 
     base_eval = {
@@ -166,3 +173,5 @@ if __name__ == '__main__':
         win_pct = sum(1 for p in profits if p > 0) / len(profits) if profits else 0.0
         print(f'{name:<14}{len(profits):>8}{win_pct:>10.1%}'
               f'{float(total_profit):>14,.0f}{float(final_return):>12.3f}')
+
+# %%

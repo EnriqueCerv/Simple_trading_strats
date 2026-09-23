@@ -10,7 +10,7 @@ def master_vol_adjusted_momentum(
         ticker: str,
         interval: str, 
         change_period: int,
-        z_ind: float, 
+        z_in: float, 
         tp_sigma: float, 
         sl_sigma: float, 
         vol_window: int = 576,
@@ -19,12 +19,12 @@ def master_vol_adjusted_momentum(
     ):
     '''
     Input: OHLCV dataframe for specific ticker, hyperparameters for the basic momentum strategy
-    Output: Tuple of profits per trade, returns per trade, total profit, cumulative return, optional plot
+    Output: Tuple of dataframe, trade tuples (price_in, price_out) and respective dates
     '''
 
     df = raw_data[ticker]
     df, n_bars = data_prep_vol(df=df, interval=interval, change_period=change_period, vol_window=vol_window)
-    trades, dates, n_ambiguous = vol_adjusted_momentum(df=df, z_ind=z_ind, tp_sigma=tp_sigma, sl_sigma=sl_sigma,
+    trades, dates, n_ambiguous = vol_adjusted_momentum(df=df, z_in=z_in, tp_sigma=tp_sigma, sl_sigma=sl_sigma,
                                                        n_bars=n_bars, tau_mult=tau_mult, min_sigma=min_sigma)
 
     return df, trades, dates, n_ambiguous
@@ -70,7 +70,7 @@ def data_prep_vol(
 
 def vol_adjusted_momentum(
         df: pd.DataFrame,
-        z_ind: float, 
+        z_in: float, 
         tp_sigma: float, 
         sl_sigma: float,
         n_bars: int,
@@ -79,7 +79,7 @@ def vol_adjusted_momentum(
     ) -> tuple:
     '''
     Input: Dataframe, z-score condition to enter a trade, take_profit and stop_loss sigma multipliers
-    Output: A tuple of (price_in, price_out) for each trade entered, respective returns and dates (date_in, date_out)
+    Output: A tuple of (price_in, price_out) for each trade entered, respective dates (date_in, date_out), number of trades closed ambiguously
     '''
 
     in_trade = False
@@ -122,7 +122,7 @@ def vol_adjusted_momentum(
             trades.append((in_price, out_price))
             dates.append((df.index[entry_i], df.index[exit_i]))
 
-        if (np.isnan(z[i]) or i + 1 == n or z[i] < z_ind
+        if (np.isnan(z[i]) or i + 1 == n or z[i] < z_in
                 or not np.isfinite(sigma_l[i]) or sigma_l[i] <= min_sigma):
             continue
         
@@ -146,7 +146,7 @@ if __name__ == '__main__':
     hyperparams = {
         'interval': '5m', 
         'change_period': 240,
-        'z_ind': 1.75, 
+        'z_in': 1.75, 
         'tp_sigma': 1.4, 
         'sl_sigma': 1.4, 
         'vol_window': 576,
