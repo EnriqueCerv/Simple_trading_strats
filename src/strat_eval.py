@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import mplfinance as mpf
 
-# %%
+
 def strat_data(
         ticker: str,
         df: pd.DataFrame,
@@ -112,10 +112,11 @@ if __name__ == '__main__':
     from src.strategies.vol_adjusted_momentum import master_vol_adjusted_momentum
     from src.strategies.momentum_fixed_horizon import master_momentum_fixed_horizon
     from src.strategies.trend_reversal import master_trend_reversal
+    from src.strategies.short_reversal import master_short_reversal
 
     ticker = 'BTC-USD'
 
-# Configs obtained from grid_search.py 
+# Configs optimised with grid_search.py 
     barrier_params = {
         'interval': '5m',
         'change_period': 240,
@@ -151,6 +152,15 @@ if __name__ == '__main__':
             'in_cond': 1.0,
             'out_cond': -0.5,
             'burn_spans': 3
+        }},
+        'short_reversal': {'fn': master_short_reversal, 'params':{
+            'interval': '5m', 
+            'lookback': 15,
+            'fit_window': 7 * 1440,
+            'refit_window': 1440 // 2,
+            'z_in': 3.5,
+            'k_halflife': 1.5,
+            'max_hold': float('inf')
         }}
     }
 

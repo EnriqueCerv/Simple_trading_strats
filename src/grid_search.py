@@ -13,6 +13,7 @@ from src.strategies.accurate_momentum import master_accurate_momentum
 from src.strategies.vol_adjusted_momentum import master_vol_adjusted_momentum
 from src.strategies.momentum_fixed_horizon import master_momentum_fixed_horizon
 from src.strategies.trend_reversal import master_trend_reversal
+from src.strategies.short_reversal import master_short_reversal
 from src.strat_eval import strat_data
 
 # %%
@@ -56,6 +57,15 @@ strat_params = {
         'out_cond': -0.5,
         'burn_spans': 3,
     }},
+    'short_reversal': {'fn': master_short_reversal, 'params':{
+        'interval': '5m', 
+        'lookback': 15,
+        'fit_window': 7 * 1440,
+        'refit_window': 1440 // 2,
+        'z_in': 3,
+        'k_halflife': 2.5,
+        'max_hold': float('inf')
+    }}
 }
 
 # ---------------------------------------------------------------------------
@@ -78,6 +88,9 @@ param_grids = {
                       'horizon': [12, 22, 48]},
     'trend_reversal': {'in_cond': [0.0, 0.5, 1.0, 1.5, 2.0],
                        'out_cond': [-1.0, -0.5, 0.0]},
+    'short_reversal': {'z_in': [1.5, 2, 2.5, 3, 3.5],
+                       'k_halflife': [1, 1.5, 2, 2.5, 3],
+                       }
 }
 
 # Validity rules per strategy: return False to skip a combination
@@ -104,6 +117,11 @@ GRID_EVAL_OVERRIDES = {'plot': False, 'verbose': False}
 # DSR Settings
 N_TRIALS = None   # None = number of valid runs in this grid; set higher to count all trials you've run
 EULER_GAMMA = 0.5772156649015329
+
+TICKER = 'BTC-USD'
+RANK_BY = 'sharpe'            # must match a metric key returned by strat_data
+MIN_TRADES = 20               # don't rank configs with too few trades to judge
+TOP_N = 5
 
 
 # %%
@@ -253,6 +271,28 @@ def summarise(
     return ranked
 
 
+# %%
+if __name__ == '__main__':
+
+    # ---------------------------------------------------------------------------
+    # Short Reversal Configuration
+    # ---------------------------------------------------------------------------
+    TICKER = 'BTC-USD'
+    STRATEGY = 'short_reversal'   # any key of strat_params
+    RANK_BY = 'sharpe'            # must match a metric key returned by strat_data
+    MIN_TRADES = 20               # don't rank configs with too few trades to judge
+    TOP_N = 5
+
+    grid = param_grids[STRATEGY]
+    results = grid_search(
+        strategy=STRATEGY,
+        ticker=TICKER,
+        grid=grid,
+        eval_kwargs=eval_params[STRATEGY],
+        constraint=constraints.get(STRATEGY),
+    )
+    # results.to_csv(f'grid_{STRATEGY}_{TICKER}.csv', index=False)
+    ranked = summarise(results, grid_keys=list(grid))
 # %%
 if __name__ == '__main__':
 
