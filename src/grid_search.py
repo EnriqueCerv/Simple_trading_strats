@@ -14,6 +14,7 @@ from src.strategies.vol_adjusted_momentum import master_vol_adjusted_momentum
 from src.strategies.momentum_fixed_horizon import master_momentum_fixed_horizon
 from src.strategies.trend_reversal import master_trend_reversal
 from src.strategies.short_reversal import master_short_reversal
+from src.strategies.donchian_breakout import master_donchian_breakout
 from src.strat_eval import strat_data
 
 # %%
@@ -65,6 +66,14 @@ strat_params = {
         'z_in': 3,
         'k_halflife': 2.5,
         'max_hold': float('inf')
+    }},
+    'donchian_breakout': {'fn': master_donchian_breakout, 'params':{
+        'interval': '5m', 
+        'lookback': int(60 * 4),
+        'period': 14,
+        'k': 3, 
+        'chandelier': False, 
+        'intrabar': True
     }}
 }
 
@@ -90,7 +99,19 @@ param_grids = {
                        'out_cond': [-1.0, -0.5, 0.0]},
     'short_reversal': {'z_in': [1.5, 2, 2.5, 3, 3.5],
                        'k_halflife': [1, 1.5, 2, 2.5, 3],
-                       }
+                       },
+    'donchian_breakout': {'lookback':   [240, 720, 1440, 2880, 10080],  # minutes: 4h, 12h, 1d, 2d, 1w
+                        'period':     [14, 48, 288],                  # 5m bars: 70 min, 4h, 1d
+                        'k':          [2, 3, 5, 8, 12],               # 5m ATR, so larger k for longer lookbacks
+                        'chandelier': [False, True],
+                        'intrabar': [False, True]
+                        }
+    # 'donchian_breakout': {'lookback':   [720, 1440, 2880],  # minutes: 4h, 12h, 1d, 2d, 1w
+    #                         'period':     [288, 576, 1152],                  # 5m bars: 70 min, 4h, 1d
+    #                         'k':          [8, 12, 16, 24, 32],               # 5m ATR, so larger k for longer lookbacks
+    #                         'chandelier': [False, True],
+    #                         'intrabar': [False, True]
+    #                         }
 }
 
 # Validity rules per strategy: return False to skip a combination
@@ -270,6 +291,29 @@ def summarise(
 
     return ranked
 
+
+# %%
+if __name__ == '__main__':
+
+    # ---------------------------------------------------------------------------
+    # Donchian breakout Configuration
+    # ---------------------------------------------------------------------------
+    TICKER = 'BTC-USD'
+    STRATEGY = 'donchian_breakout'   # any key of strat_params
+    RANK_BY = 'sharpe'            # must match a metric key returned by strat_data
+    MIN_TRADES = 20               # don't rank configs with too few trades to judge
+    TOP_N = 5
+
+    grid = param_grids[STRATEGY]
+    results = grid_search(
+        strategy=STRATEGY,
+        ticker=TICKER,
+        grid=grid,
+        eval_kwargs=eval_params[STRATEGY],
+        constraint=constraints.get(STRATEGY),
+    )
+    # results.to_csv(f'grid_{STRATEGY}_{TICKER}.csv', index=False)
+    ranked = summarise(results, grid_keys=list(grid))
 
 # %%
 if __name__ == '__main__':

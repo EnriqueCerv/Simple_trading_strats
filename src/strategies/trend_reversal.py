@@ -130,6 +130,9 @@ def trend_reversal(
     d_norm = df['D_norm'].to_numpy()
 
     for i in range(n - 1):
+        if in_trade and d_norm[i] >= in_cond:
+            continue
+
         if in_trade:
             if d_norm[i] > out_cond:
                 continue

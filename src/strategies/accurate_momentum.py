@@ -68,6 +68,9 @@ def accurate_momentum(
     pct = df['pct_change'].to_numpy()
 
     for i in range(n):
+        if in_trade and pct[i] >= in_cond:
+            continue
+
         if in_trade: 
             if o[i] >= tp or o[i] <= sl:
                 # Case 1: the market jumped over the barrier since last available ticker

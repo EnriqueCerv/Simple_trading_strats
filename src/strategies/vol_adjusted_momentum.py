@@ -98,6 +98,9 @@ def vol_adjusted_momentum(
     max_bars = int(np.ceil(tau_mult * tp_sigma ** 2 * n_bars))
 
     for i in range(n):
+        if in_trade and z[i] >= z_in:
+            continue
+
         if in_trade:
             exit_i = i
 

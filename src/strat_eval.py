@@ -73,6 +73,32 @@ def strat_data(
 
     return profits, total_profit, cum_return, cum_return[-1]
 
+def restrict_to_window(df, trades, dates, start=None, end=None):
+    '''
+    Keep trades entered in [start, end); mark trades still open at `end`
+    to the last close before `end`. Signals are computed on full history,
+    so indicator warm-up does not consume the window.
+    Returns the sliced df (for benchmarks/plots), trades, dates.
+    '''
+    tz = df.index.tz
+    t0 = pd.Timestamp(start, tz=tz) if start else df.index[0]
+    t1 = pd.Timestamp(end, tz=tz) if end else df.index[-1] + pd.Timedelta(1, 'ns')
+
+    df_w = df[(df.index >= t0) & (df.index < t1)]
+    if df_w.empty:
+        raise ValueError(f'no data between {t0} and {t1}')
+    last_date, last_close = df_w.index[-1], df_w['Close'].iloc[-1]
+
+    new_trades, new_dates = [], []
+    for (p_in, p_out), (d_in, d_out) in zip(trades, dates):
+        if not (t0 <= d_in < t1):
+            continue
+        if d_out >= t1:
+            p_out, d_out = last_close, last_date
+        new_trades.append((p_in, p_out))
+        new_dates.append((d_in, d_out))
+
+    return df_w, new_trades, new_dates
 
 def eval_strat(
         trades: list,
@@ -113,6 +139,7 @@ if __name__ == '__main__':
     from src.strategies.momentum_fixed_horizon import master_momentum_fixed_horizon
     from src.strategies.trend_reversal import master_trend_reversal
     from src.strategies.short_reversal import master_short_reversal
+    from src.strategies.donchian_breakout import master_donchian_breakout
 
     ticker = 'BTC-USD'
 
@@ -120,9 +147,9 @@ if __name__ == '__main__':
     barrier_params = {
         'interval': '5m',
         'change_period': 240,
-        'in_cond': 0.02,
-        'take_profit': 1.02,
-        'stop_loss': 0.985,
+        'in_cond': 0.01,
+        'take_profit': 1.01,
+        'stop_loss': 0.99,
     }
 
     strat_params = {
@@ -133,7 +160,7 @@ if __name__ == '__main__':
             'interval': '5m',
             'change_period': 240,
             'z_in': 1.8,
-            'tp_sigma': 2.0,
+            'tp_sigma': 1.6,
             'sl_sigma': 1.6,
             'vol_window': 576,
             'tau_mult': 3.0,
@@ -161,6 +188,14 @@ if __name__ == '__main__':
             'z_in': 3.5,
             'k_halflife': 1.5,
             'max_hold': float('inf')
+        }},
+        'donchian_breakout': {'fn': master_donchian_breakout, 'params':{
+            'interval': '5m', 
+            'lookback': 1440,
+            'period': 288,
+            'k': 12, 
+            'chandelier': False, 
+            'intrabar': True
         }}
     }
 
@@ -173,15 +208,19 @@ if __name__ == '__main__':
     }
     eval_params = {name: dict(base_eval) for name in strat_params}
 
+    eval_start, eval_end = '2024-01-01', '2025-01-01' 
+
     results = {}
     for name, cfg in strat_params.items():
-        if name in {'basic', 'refined', 'fixed_horizon'}:
+        if name in {'basic', 'refined', 'fixed_horizon', 'short_reversal'}:
             continue
         out = cfg['fn'](ticker=ticker, **cfg['params'])
 
         # basic/refined return 3 values, accurate/vol_adjusted return 4
         df, trades, dates = out[:3]
         n_ambiguous = out[3] if len(out) > 3 else None
+
+        # df, trades, dates = restrict_to_window(df, trades, dates, eval_start, eval_end)
 
         results[name] = strat_data(
             ticker, df, trades, dates,
