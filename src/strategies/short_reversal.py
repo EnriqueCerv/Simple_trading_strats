@@ -24,6 +24,7 @@ def master_short_reversal(
 
     df = data[ticker]
     df = data_prep_short_reversal(df=df, interval=interval, lookback=lookback, fit_window=fit_window, refit_window=refit_window)
+    max_hold = max_hold if np.isinf(max_hold) else bars_in_period(interval=interval, window=max_hold)
     trades, dates = short_reversal(df=df, z_in=z_in, k_halflife=k_halflife, max_hold=max_hold)
 
     return df, trades, dates
@@ -199,7 +200,7 @@ if __name__ == '__main__':
         'refit_window': 1440,
         'z_in': 0.42,
         'k_halflife': 1,
-        'max_hold': 12
+        'max_hold': 12*5
             }
     for ticker in tickers:
         _, _, dates = master_short_reversal(ticker=ticker, **hyperparams)

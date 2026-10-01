@@ -30,6 +30,9 @@ def strat_data(
     win_pct = sum(1 for ele in profits if ele > 0) / len(trades) if trades else 0
     n_trades = len(trades)
 
+    years = (df.index[-1] - df.index[0]) / pd.Timedelta(days=365.25)
+    sharpe = returns.mean() / returns.std(ddof=1) * np.sqrt(n_trades / years) if n_trades > 1 and years > 0 and returns.std(ddof=1) > 0 else np.nan
+
     if verbose:
         print(f"Ticker: {ticker}{f'  |  Strategy: {strategy}' if strategy else ''}")
         print(f'Number of trades in {df.index.normalize().nunique()} days: {n_trades}')
@@ -71,7 +74,7 @@ def strat_data(
         )
 
 
-    return profits, total_profit, cum_return, cum_return[-1]
+    return profits, total_profit, cum_return, cum_return[-1], sharpe
 
 def restrict_to_window(df, trades, dates, start=None, end=None):
     '''
@@ -132,6 +135,8 @@ def eval_strat(
 
 if __name__ == '__main__':
 
+    from src.data import get_data_yf
+
     from src.strategies.basic_momentum import master_basic_momentum
     from src.strategies.refined_momentum import master_refined_momentum
     from src.strategies.accurate_momentum import master_accurate_momentum
@@ -142,10 +147,13 @@ if __name__ == '__main__':
     from src.strategies.donchian_breakout import master_donchian_breakout
 
     ticker = 'BTC-USD'
+    interval = '5m'
+    raw_data = get_data_yf(interval=interval)
 
 # Configs optimised with grid_search.py 
     barrier_params = {
-        'interval': '5m',
+        'interval': interval,
+        'data': raw_data,
         'change_period': 240,
         'in_cond': 0.01,
         'take_profit': 1.01,
@@ -157,23 +165,26 @@ if __name__ == '__main__':
         'refined':      {'fn': master_refined_momentum, 'params': barrier_params},
         'accurate':     {'fn': master_accurate_momentum,'params': barrier_params},
         'vol_adjusted': {'fn': master_vol_adjusted_momentum, 'params': {
-            'interval': '5m',
+            'interval': interval,
+            'data': raw_data,
             'change_period': 240,
             'z_in': 1.8,
             'tp_sigma': 1.6,
             'sl_sigma': 1.6,
-            'vol_window': 576,
+            'vol_window': 576*5,
             'tau_mult': 3.0,
             'min_sigma': 0.0,
         }},
         'fixed_horizon': {'fn': master_momentum_fixed_horizon, 'params': {
-            'interval': '5m',
+            'interval': interval,
+            'data': raw_data,
             'change_period': 240,
             'z_in': 1.8,
-            'horizon': 22
+            'horizon': 22*5
         }},
         'trend_reversal': {'fn': master_trend_reversal, 'params':{
-            'interval': '5m', 
+            'interval': interval,
+            'data': raw_data, 
             'fast_window': 60,
             'slow_window': 180,
             'in_cond': 1.0,
@@ -181,7 +192,8 @@ if __name__ == '__main__':
             'burn_spans': 3
         }},
         'short_reversal': {'fn': master_short_reversal, 'params':{
-            'interval': '5m', 
+            'interval': interval,
+            'data': raw_data, 
             'lookback': 15,
             'fit_window': 7 * 1440,
             'refit_window': 1440 // 2,
@@ -190,11 +202,12 @@ if __name__ == '__main__':
             'max_hold': float('inf')
         }},
         'donchian_breakout': {'fn': master_donchian_breakout, 'params':{
-            'interval': '5m', 
-            'lookback': 1440,
-            'period': 288,
-            'k': 12, 
-            'chandelier': False, 
+            'interval': interval,
+            'data': raw_data, 
+            'lookback': 2880,
+            'period': 240,
+            'k': 5, 
+            'chandelier': True, 
             'intrabar': True
         }}
     }
@@ -229,9 +242,9 @@ if __name__ == '__main__':
             **eval_params[name]
         )
 
-    print(f'{"strategy":<14}{"trades":>8}{"win_pct":>10}{"profit":>14}{"cum_return":>12}')
-    for name, (profits, total_profit, cum_return, final_return) in results.items():
+    print(f'{"strategy":<14}{"trades":>8}{"win_pct":>10}{"profit":>14}{"cum_return":>12}{"sharpe":>9}')
+    for name, (profits, total_profit, cum_return, final_return, sharpe) in results.items():
         win_pct = sum(1 for p in profits if p > 0) / len(profits) if profits else 0.0
         print(f'{name:<14}{len(profits):>8}{win_pct:>10.1%}'
-              f'{float(total_profit):>14,.0f}{float(final_return):>12.3f}')
+            f'{float(total_profit):>14,.0f}{float(final_return):>12.3f}{sharpe:>9.3f}')
 

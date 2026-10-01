@@ -23,6 +23,23 @@ def master_basic_momentum(
 
     return df, trades, dates
 # %%
+
+def bars_in_period(interval: str, window: int) -> int:
+    '''
+    Input: bar interval string ('5m', '1h', '1d'), lookback window in MINUTES
+    Output: number of bars spanning that window
+    '''
+
+    unit = interval[-1].lower()
+    value = int(interval[:-1])
+
+    minutes_per_unit = {'m': 1, 'h': 60, 'd': 1440}
+    if unit not in minutes_per_unit:
+        raise ValueError(f'unsupported interval unit: {interval!r}')
+
+    return window // (value * minutes_per_unit[unit])
+
+
 def data_prep_basic(
         df: pd.DataFrame,  
         interval: str, 
@@ -34,8 +51,7 @@ def data_prep_basic(
     (Best suited for tickers with no session breaks as lag is ticker based not time based)    
     '''
 
-    interval = int(interval[:-1])
-    n_bars = change_period // interval
+    n_bars = bars_in_period(interval=interval, window=change_period)
 
     new_df = df.copy()
     new_df['pct_change'] = new_df['Close'].pct_change(n_bars)

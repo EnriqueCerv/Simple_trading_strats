@@ -155,6 +155,7 @@ import pandas as pd
 
 
 def in_cond_floor(
+        interval: str,
         kappa: float,
         fast_bars: int,
         slow_bars: int,
@@ -170,7 +171,7 @@ def in_cond_floor(
     hold_bars : expected holding time in bars (e.g. median from a backtest)
     shrink    : fraction of the estimated drift you expect to actually realise (0 < shrink <= 1)
     '''
-    fast_bars, slow_bars = bars_in_period('5m', window=fast_bars), bars_in_period('5m', window=slow_bars)
+    fast_bars, slow_bars = bars_in_period(interval=interval, window=fast_bars), bars_in_period(interval=interval, window=slow_bars)
     lam_f, lam_s = ewma_lambda(fast_bars), ewma_lambda(slow_bars)
     w_norm = np.sqrt(kernel_l2_norm(lam_f, lam_s))
     lag_diff = (slow_bars - fast_bars) / 2

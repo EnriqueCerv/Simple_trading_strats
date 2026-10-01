@@ -20,7 +20,7 @@ def master_donchian_breakout(
         ticker     : key into raw_data
         interval   : bar size string ('5m', '1h', '1d')
         lookback   : Donchian channel window, in MINUTES
-        period     : Wilder ATR period, in BARS
+        period     : Wilder ATR period, in MINUTES
         k          : stop distance in ATR multiples
         chandelier : stop anchored to running high since entry (True) or to close (False)
         intrabar      : intrabar model (True) or close-confirmed with next-open fills (False)
@@ -31,6 +31,7 @@ def master_donchian_breakout(
     '''
 
     df = data[ticker]
+    period = bars_in_period(interval=interval, window=period)
     df = data_prep_donchian_breakout(df=df, interval=interval, lookback=lookback, period=period)
     trades, dates = donchian_breakout(df=df, k=k, chandelier=chandelier, intrabar=intrabar)
 
@@ -191,7 +192,7 @@ if __name__ == '__main__':
         'interval': '5m',
         'data': raw_data, 
         'lookback': int(60 * 4),
-        'period': 14,
+        'period': 14*5,
         'k': 3, 
         'chandelier': False,
         'intrabar': False

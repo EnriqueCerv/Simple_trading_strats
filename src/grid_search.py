@@ -20,7 +20,7 @@ from src.strat_eval import strat_data
 # %%
 
 # ---------------------------------------------------------------------------
-# Base parameters per strategy (grid values override these)
+# Base parameters per strategy (grid values override these) for 5min intervals
 # ---------------------------------------------------------------------------
 barrier_params = {
     'interval': '5m',
@@ -40,7 +40,7 @@ strat_params = {
         'z_in': 1.8,
         'tp_sigma': 1.6,
         'sl_sigma': 1.6,
-        'vol_window': 576,
+        'vol_window': 576*5,
         'tau_mult': 3.0,
         'min_sigma': 0.0,
     }},
@@ -48,7 +48,7 @@ strat_params = {
         'interval': '5m',
         'change_period': 240,
         'z_in': 1.8,
-        'horizon': 22,
+        'horizon': 22*5,
     }},
     'trend_reversal': {'fn': master_trend_reversal, 'params': {
         'interval': '5m',
@@ -70,7 +70,7 @@ strat_params = {
     'donchian_breakout': {'fn': master_donchian_breakout, 'params':{
         'interval': '5m', 
         'lookback': int(60 * 4),
-        'period': 14,
+        'period': 14*5,
         'k': 3, 
         'chandelier': False, 
         'intrabar': True
@@ -94,24 +94,32 @@ param_grids = {
                       'tp_sigma': [1.2, 1.6, 2.0],
                       'sl_sigma': [1.2, 1.6, 2.0]},
     'fixed_horizon': {'z_in': [1.5, 1.8, 2.1],
-                      'horizon': [12, 22, 48]},
+                      'horizon': [12*5, 22*5, 48*5]},
     'trend_reversal': {'in_cond': [0.0, 0.5, 1.0, 1.5, 2.0],
                        'out_cond': [-1.0, -0.5, 0.0]},
     'short_reversal': {'z_in': [1.5, 2, 2.5, 3, 3.5],
                        'k_halflife': [1, 1.5, 2, 2.5, 3],
                        },
-    'donchian_breakout': {'lookback':   [240, 720, 1440, 2880, 10080],  # minutes: 4h, 12h, 1d, 2d, 1w
-                        'period':     [14, 48, 288],                  # 5m bars: 70 min, 4h, 1d
+    'donchian_breakout': { # for 5min bars
+                        'lookback':   [240, 720, 1440, 2880, 10080],  # minutes: 4h, 12h, 1d, 2d, 1w
+                        'period':     [14*5, 48*5, 288*5],                  # 5m bars: 70 min, 4h, 1d
                         'k':          [2, 3, 5, 8, 12],               # 5m ATR, so larger k for longer lookbacks
                         'chandelier': [False, True],
                         'intrabar': [False, True]
                         }
     # 'donchian_breakout': {'lookback':   [720, 1440, 2880],  # minutes: 4h, 12h, 1d, 2d, 1w
-    #                         'period':     [288, 576, 1152],                  # 5m bars: 70 min, 4h, 1d
+    #                         'period':     [288*5, 576*5, 1152*5],                  # 5m bars: 70 min, 4h, 1d
     #                         'k':          [8, 12, 16, 24, 32],               # 5m ATR, so larger k for longer lookbacks
     #                         'chandelier': [False, True],
     #                         'intrabar': [False, True]
     #                         }
+    # 'donchian_breakout': { #for 60min bars
+    #                         'lookback': [1440, 4320, 10080, 20160, 40320, 80640],  # 1d, 3d, 1w, 2w, 4w, 8w
+    #                         'period':   [1440, 4320, 10080],                       # ATR: 1d, 3d, 1w  (24, 72, 168 bars)
+    #                         'k':        [3, 5, 8, 12, 18],                         # in 1h-ATR units
+    #                         'chandelier': [False, True],
+    #                         'intrabar':   [True],                                  # fix it, don't search it (see below)
+    #                     },
 }
 
 # Validity rules per strategy: return False to skip a combination
@@ -166,7 +174,7 @@ def _metrics(strat_out: tuple, df: pd.DataFrame) -> dict:
     Build ranking metrics from strat_data's
     (trade_pnls, total_pnl, equity_after_each_trade, final_multiple).
     '''
-    pnls, total_pnl, equity, final_mult = strat_out
+    pnls, total_pnl, equity, final_mult, *_ = strat_out
     pnls = np.asarray(pnls, dtype=float)
     equity = np.asarray(equity, dtype=float)
     n = len(pnls)
@@ -205,6 +213,7 @@ def _metrics(strat_out: tuple, df: pd.DataFrame) -> dict:
 def grid_search(
         strategy: str,
         ticker: str,
+        data: dict,
         grid: dict[str, list],
         eval_kwargs: dict,
         constraint: Callable[[dict], bool] | None = None,
@@ -229,7 +238,7 @@ def grid_search(
 
         print(f'[{k}/{len(combos)}] {overrides}')
         try:
-            df, trades, dates, n_ambiguous = _unpack(fn(ticker=ticker, **params))
+            df, trades, dates, n_ambiguous = _unpack(fn(ticker=ticker, data=data, **params))
             metrics = strat_data(
                 ticker, df, trades, dates,
                 strategy=strategy,
@@ -294,6 +303,11 @@ def summarise(
 
 # %%
 if __name__ == '__main__':
+    from src.data import get_data_yf
+    interval = '5m'
+    RAW_DATA = get_data_yf(interval=interval)
+# %%
+if __name__ == '__main__':
 
     # ---------------------------------------------------------------------------
     # Donchian breakout Configuration
@@ -308,6 +322,7 @@ if __name__ == '__main__':
     results = grid_search(
         strategy=STRATEGY,
         ticker=TICKER,
+        data=RAW_DATA,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY),
@@ -331,6 +346,7 @@ if __name__ == '__main__':
     results = grid_search(
         strategy=STRATEGY,
         ticker=TICKER,
+        data=RAW_DATA,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY),
@@ -353,6 +369,7 @@ if __name__ == '__main__':
     results = grid_search(
         strategy=STRATEGY,
         ticker=TICKER,
+        data=RAW_DATA,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY),
@@ -376,6 +393,7 @@ if __name__ == '__main__':
     results = grid_search(
         strategy=STRATEGY,
         ticker=TICKER,
+        data=RAW_DATA,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY),
@@ -399,6 +417,7 @@ if __name__ == '__main__':
     results = grid_search(
         strategy=STRATEGY,
         ticker=TICKER,
+        data=RAW_DATA,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY),

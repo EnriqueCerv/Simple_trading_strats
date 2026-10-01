@@ -11,12 +11,12 @@ def master_vol_adjusted_momentum(
         z_in: float, 
         tp_sigma: float, 
         sl_sigma: float, 
-        vol_window: int = 576,
+        vol_window: int = 576*5,
         tau_mult: float = 3.0,
         min_sigma: float = 0.0,
     ):
     '''
-    Input: OHLCV dataframe for specific ticker, hyperparameters for the basic momentum strategy
+    Input: OHLCV dataframe for specific ticker, hyperparameters for the vol_adjusted momentum strategy (all time units in minute)
     Output: Tuple of dataframe, trade tuples (price_in, price_out) and respective dates
     '''
 
@@ -47,7 +47,7 @@ def data_prep_vol(
         df: pd.DataFrame,  
         interval: str, 
         change_period: int,
-        vol_window: int = 576
+        vol_window: int = 576*5
     ) -> tuple:
     '''
     Input: DataFrame of a single ticker, ticker frequency, lookback window, vol estimation window
@@ -56,10 +56,11 @@ def data_prep_vol(
     '''
 
     n_bars = bars_in_period(interval=interval, change_period=change_period)
+    vol_window_bars = bars_in_period(interval=interval, change_period=vol_window)
 
     new_df = df.copy()
     pct_change = new_df['Close'].pct_change()
-    sig_bar = pct_change.rolling(vol_window).std()
+    sig_bar = pct_change.rolling(vol_window_bars).std()
     new_df['sigma_lookback'] = sig_bar * np.sqrt(n_bars)
     new_df['z'] = new_df['Close'].pct_change(n_bars) / new_df['sigma_lookback']
 
@@ -154,7 +155,7 @@ if __name__ == '__main__':
         'z_in': 1.75, 
         'tp_sigma': 1.4, 
         'sl_sigma': 1.4, 
-        'vol_window': 576,
+        'vol_window': 576*5,
         'tau_mult': 3.0,
         'min_sigma': 0.0
             }

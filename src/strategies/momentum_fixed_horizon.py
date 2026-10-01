@@ -12,12 +12,13 @@ def master_momentum_fixed_horizon(
         horizon: int
     ):
     '''
-    Input: OHLCV dataframe for specific ticker, hyperparameters for the basic momentum strategy
+    Input: OHLCV dataframe for specific ticker, hyperparameters for the momentum strategy with fixed holding horizon (all time units in minutes)
     Output: Tuple of dataframe, trade tuples (price_in, price_out) and respective dates
     '''
 
     df = data[ticker]
     df, _ = data_prep_fixed_momentum(df=df, interval=interval, change_period=change_period)
+    horizon = bars_in_period(interval=interval, change_period=horizon)
     trades, dates = momentum_fixed_horizon(df=df, z_in=z_in, horizon=horizon)
 
     return df, trades, dates
@@ -61,7 +62,7 @@ def data_prep_fixed_momentum(
         df: pd.DataFrame,  
         interval: str, 
         change_period: int,
-        vol_window: int = 576
+        vol_window: int = 576*5
     ) -> tuple:
     '''
     Input: DataFrame of a single ticker, ticker frequency, lookback window, vol estimation window
@@ -70,10 +71,11 @@ def data_prep_fixed_momentum(
     '''
 
     n_bars = bars_in_period(interval=interval, change_period=change_period)
+    vol_window_bars = bars_in_period(interval=interval, change_period=vol_window)
 
     new_df = df.copy()
     pct_change = new_df['Close'].pct_change()
-    sig_bar = pct_change.rolling(vol_window).std()
+    sig_bar = pct_change.rolling(vol_window_bars).std()
     new_df['sigma_lookback'] = sig_bar * np.sqrt(n_bars)
     new_df['z'] = new_df['Close'].pct_change(n_bars) / new_df['sigma_lookback']
 
@@ -138,7 +140,7 @@ if __name__ == '__main__':
         'data': raw_data, 
         'z_in': 1.8,
         'change_period': 240,
-        'horizon': 20
+        'horizon': 20*5
             }
     for ticker in tickers:
         master_momentum_fixed_horizon(ticker = ticker, **hyperparams)
