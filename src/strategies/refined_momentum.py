@@ -1,13 +1,11 @@
 # %%
 import pandas as pd
 import numpy as np
-import mplfinance as mpf
-
-from src.data import raw_data
 
 # %%
 def master_refined_momentum(
         ticker: str,
+        data: dict,
         interval: str, 
         change_period: int,
         in_cond: float, 
@@ -19,7 +17,7 @@ def master_refined_momentum(
     Output: Tuple of dataframe, trade tuples (price_in, price_out) and respective dates
     '''
 
-    df = raw_data[ticker]
+    df = data[ticker]
     df = data_prep_refined(df=df, interval=interval, change_period=change_period)
     trades, dates = refined_momentum(df=df, in_cond=in_cond, take_profit=take_profit, stop_loss=stop_loss)
 
@@ -93,10 +91,14 @@ def refined_momentum(
 
 if __name__ == '__main__':
 
-    tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']  
+    tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']
+
+    from src.data import get_data_yf
+    raw_data = get_data_yf('5m')
 
     hyperparams = {
-        'interval': '5m', 
+        'interval': '5m',
+        'data': raw_data, 
         'change_period': 240,
         'in_cond': 0.01, 
         'take_profit': 1.01, 

@@ -1,13 +1,11 @@
 # %%
 import pandas as pd
 import numpy as np
-import mplfinance as mpf
-
-from src.data import raw_data
 
 # %%
 def master_vol_adjusted_momentum(
         ticker: str,
+        data: dict,
         interval: str, 
         change_period: int,
         z_in: float, 
@@ -22,7 +20,7 @@ def master_vol_adjusted_momentum(
     Output: Tuple of dataframe, trade tuples (price_in, price_out) and respective dates
     '''
 
-    df = raw_data[ticker]
+    df = data[ticker]
     df, n_bars = data_prep_vol(df=df, interval=interval, change_period=change_period, vol_window=vol_window)
     trades, dates, n_ambiguous = vol_adjusted_momentum(df=df, z_in=z_in, tp_sigma=tp_sigma, sl_sigma=sl_sigma,
                                                        n_bars=n_bars, tau_mult=tau_mult, min_sigma=min_sigma)
@@ -144,10 +142,14 @@ def vol_adjusted_momentum(
 # %%
 
 if __name__ == '__main__':
-    tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']  
+    tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']
+
+    from src.data import get_data_yf
+    raw_data = get_data_yf('5m')
 
     hyperparams = {
-        'interval': '5m', 
+        'interval': '5m',
+        'data': raw_data, 
         'change_period': 240,
         'z_in': 1.75, 
         'tp_sigma': 1.4, 

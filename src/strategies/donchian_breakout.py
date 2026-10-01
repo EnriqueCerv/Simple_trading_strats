@@ -1,13 +1,11 @@
 # %%
 import pandas as pd
 import numpy as np
-import mplfinance as mpf
-
-from src.data import raw_data
 
 # %%
 def master_donchian_breakout(
         ticker: str,
+        data: dict,
         interval: str, 
         lookback: int,
         period: int,
@@ -32,7 +30,7 @@ def master_donchian_breakout(
         dates  : list of (date_in, date_out)
     '''
 
-    df = raw_data[ticker]
+    df = data[ticker]
     df = data_prep_donchian_breakout(df=df, interval=interval, lookback=lookback, period=period)
     trades, dates = donchian_breakout(df=df, k=k, chandelier=chandelier, intrabar=intrabar)
 
@@ -186,8 +184,12 @@ def donchian_breakout(
 if __name__ == '__main__':
     tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']  
 
+    from src.data import get_data_yf
+    raw_data = get_data_yf('5m')
+
     hyperparams = {
-        'interval': '5m', 
+        'interval': '5m',
+        'data': raw_data, 
         'lookback': int(60 * 4),
         'period': 14,
         'k': 3, 

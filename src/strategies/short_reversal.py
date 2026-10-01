@@ -3,11 +3,10 @@ import pandas as pd
 import numpy as np
 import statsmodels.api as sm
 
-from src.data import raw_data
-
 # %%
 def master_short_reversal(
         ticker: str,
+        data: dict,
         interval: str, 
         lookback: int,
         fit_window: int,
@@ -23,7 +22,7 @@ def master_short_reversal(
     Output: Tuple of dataframe, trade tuples (price_in, price_out) and respective dates
     '''
 
-    df = raw_data[ticker]
+    df = data[ticker]
     df = data_prep_short_reversal(df=df, interval=interval, lookback=lookback, fit_window=fit_window, refit_window=refit_window)
     trades, dates = short_reversal(df=df, z_in=z_in, k_halflife=k_halflife, max_hold=max_hold)
 
@@ -187,10 +186,14 @@ def short_reversal(
 # %%
 
 if __name__ == '__main__':
-    tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']  
+    tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']
+
+    from src.data import get_data_yf
+    raw_data = get_data_yf('5m')
 
     hyperparams = {
-        'interval': '5m', 
+        'interval': '5m',
+        'data': raw_data, 
         'lookback': 15,
         'fit_window': 7 * 1440,
         'refit_window': 1440,

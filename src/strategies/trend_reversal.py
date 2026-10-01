@@ -1,13 +1,11 @@
 # %%
 import pandas as pd
 import numpy as np
-import mplfinance as mpf
-
-from src.data import raw_data
 
 # %%
 def master_trend_reversal(
         ticker: str,
+        data: dict,
         interval: str, 
         fast_window: int,
         slow_window: int,
@@ -22,7 +20,7 @@ def master_trend_reversal(
     Output: Tuple of dataframe, trade tuples (price_in, price_out) and respective dates
     '''
 
-    df = raw_data[ticker]
+    df = data[ticker]
     df = data_prep_trend_reversal(df=df, interval=interval, fast_window=fast_window, slow_window=slow_window, burn_spans=burn_spans)
     trades, dates = trend_reversal(df=df, in_cond=in_cond, out_cond=out_cond)
 
@@ -181,10 +179,14 @@ def in_cond_floor(
 # %%
 
 if __name__ == '__main__':
-    tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']  
+    tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']
+
+    from src.data import get_data_yf
+    raw_data = get_data_yf('5m')
 
     hyperparams = {
-        'interval': '5m', 
+        'interval': '5m',
+        'data': raw_data, 
         'fast_window': 60,
         'slow_window': 180,
         'in_cond': 1.0,
