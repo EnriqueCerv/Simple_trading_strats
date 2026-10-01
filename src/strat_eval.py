@@ -234,3 +234,5 @@ if __name__ == '__main__':
         win_pct = sum(1 for p in profits if p > 0) / len(profits) if profits else 0.0
         print(f'{name:<14}{len(profits):>8}{win_pct:>10.1%}'
               f'{float(total_profit):>14,.0f}{float(final_return):>12.3f}')
+
+# %%

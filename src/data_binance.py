@@ -171,40 +171,36 @@ def load(ticker: str, interval: str, start: str, end: str | None = None,
 
 # %%
 tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD']
-interval = '5m'
+intervals = ['1h']
 start = '2018-01-01'
 end = None          # up to yesterday
 refresh = False     # True: rebuild the combined file (zips stay cached, so it's fast)
 
 from pathlib import Path
 
-def _find_src() -> Path:
-    try:
-        here = Path(__file__).resolve().parent
-    except NameError:                  # interactive window / notebook
-        here = Path.cwd().resolve()
-    for p in (here, *here.parents):
-        if p.name == 'src':
-            return p
-    raise FileNotFoundError(f'could not locate src/ above {here}')
-
-data_dir = _find_src() / 'Data'
-cache_root = data_dir / 'binance'
+cur_path = Path(__file__).resolve()
+project_root = next(p for p in cur_path.parents if p.name == "Simple_trading_strats")
+data_dir = project_root / 'Data' / 'binance'
 data_dir.mkdir(parents=True, exist_ok=True)
-data_file = data_dir / f'raw_data_binance_{interval}.parquet'
 
-if os.path.exists(data_file) and not refresh:
-    print('Loading existing data from parquet...')
-    combined_df = pd.read_parquet(data_file)
-    raw_data = {t: combined_df.xs(t, level='Ticker')
-                for t in tickers if t in combined_df.index.get_level_values('Ticker')}
-else:
-    print('Fetching data from data.binance.vision...')
-    raw_data = {t: load(t, interval=interval, start=start, end=end, cache_root=cache_root)
-                for t in tickers}
-    combined_df = pd.concat(raw_data.values(), keys=raw_data.keys(), names=['Ticker', 'Date'])
-    combined_df.to_parquet(data_file)
-    print(f'Data saved to {data_file}')
+cache_root = data_dir / 'cache' # Avoids duplicating 'binance/binance'
+cache_root.mkdir(parents=True, exist_ok=True)
+
+for interval in intervals:
+    data_file = data_dir / f'raw_data_{interval}.parquet'
+
+    if os.path.exists(data_file) and not refresh:
+        print('Loading existing data from parquet...')
+        combined_df = pd.read_parquet(data_file)
+        raw_data = {t: combined_df.xs(t, level='Ticker')
+                    for t in tickers if t in combined_df.index.get_level_values('Ticker')}
+    else:
+        print('Fetching data from data.binance.vision...')
+        raw_data = {t: load(t, interval=interval, start=start, end=end, cache_root=cache_root)
+                    for t in tickers}
+        combined_df = pd.concat(raw_data.values(), keys=raw_data.keys(), names=['Ticker', 'Date'])
+        combined_df.to_parquet(data_file)
+        print(f'Data saved to {data_file}')
 
 # %%
 if __name__ == '__main__':
