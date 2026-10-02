@@ -58,7 +58,7 @@ The last three files are earlier or alternative momentum variants (close-only fi
 - A signal computed on the close of bar $t$ is traded at the open of bar $t+1$. The only exception is the Donchian breakout in intrabar mode.
 - Every window parameter is given in **minutes** and converted to bars by integer division with the bar size, so the same configuration can be run on 5m, 30m or 60m bars.
 - Lags are counted in bars rather than clock time, which suits markets that trade 24/7 without session breaks.
-- Each strategy exposes a `master_*` function that returns `(df, trades, dates)`, where `trades` is a list of `(price_in, price_out)` and `dates` a list of `(date_in, date_out)`. The two barrier strategies also return `n_ambiguous`.
+- Each strategy exposes a `master_*` function that returns `(df, trades, dates)`, where `trades` is a list of `(price_in, price_out)` and `dates` a list of `(date_in, date_out)`. The two barrier strategies also return `n_ambiguous` for the number of trades executed without ordering of High/Low.
 
 ### 1. Momentum (`accurate_momentum.py`)
 
@@ -382,4 +382,4 @@ Paths are relative to the repository root. To control the size, use HTML instead
 
 ## Planned
 
-- Notebooks that display the data, single-strategy backtests, grid-search surfaces and walk-forward results.
+- Notebooks that display the data, more extensive walk-forward results, multi ticker strategies.
