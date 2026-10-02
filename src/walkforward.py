@@ -287,10 +287,11 @@ constraints = {
 # ---------------------------------------------------------------------------
 # Evaluation settings
 # ---------------------------------------------------------------------------
+cost_bps = 10.0
 base_eval = {
     'amount': 10000,
     'accumulates': True,
-    'cost_bps': 10.0,
+    'cost_bps': cost_bps,
     'verbose': False,
     'plot': False,
 }
@@ -363,21 +364,25 @@ if __name__ == '__main__':
         min_trades=20
     )
 
+# %%
     bench_idx = pd.date_range('2018-01-01 00:00:00+00:00', '2026-09-30 23:55:00+00:00', freq='1D')
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
-
+    rfr = 1.10
 
     plt.figure(figsize=(12, 6))
     accurate_cum_returns_5m.plot(label='Momentum')
     vol_cum_returns_5m.plot(label='Vol_adjusted Momentum')
     trend_cum_returns_5m.plot(label='EWMA Trend Reversal')
     donchian_cum_returns_5m.plot(label='Donchian Breakout')
-    pd.Series(1.10 ** years, index=bench_idx).plot(label='8%/yr benchmark', ls='--', color='grey')
+    pd.Series(rfr ** years, index=bench_idx).plot(label=f'{int((rfr - 1)*100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
-    plt.title(f'Walkforward backtest {interval}')
+    plt.title(f'Walkforward backtest for {interval} bars and cost_bps={cost_bps}')
     plt.xticks(rotation=5)
     plt.grid()
     plt.tight_layout()
+    plt.ylabel('Cumulative return')
+    os.makedirs('results', exist_ok=True)
+    plt.savefig(f'results/walkforward_{interval}.png', dpi=150, bbox_inches='tight')
     plt.show()
 
 # %%
@@ -444,21 +449,25 @@ if __name__ == '__main__':
         min_trades=20
     )
 
+# %%
     bench_idx = pd.date_range('2018-01-01 00:00:00+00:00', '2026-09-30 23:55:00+00:00', freq='1D')
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
-
+    rfr = 1.10
 
     plt.figure(figsize=(12, 6))
     accurate_cum_returns_30m.plot(label='Momentum')
     vol_cum_returns_30m.plot(label='Vol_adjusted Momentum')
     trend_cum_returns_30m.plot(label='EWMA Trend Reversal')
     donchian_cum_returns_30m.plot(label='Donchian Breakout')
-    pd.Series(1.10 ** years, index=bench_idx).plot(label='8%/yr benchmark', ls='--', color='grey')
+    pd.Series(rfr ** years, index=bench_idx).plot(label=f'{int((rfr - 1)*100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
-    plt.title(f'Walkforward backtest {interval}')
+    plt.title(f'Walkforward backtest for {interval} bars and cost_bps={cost_bps}')
     plt.xticks(rotation=5)
     plt.grid()
     plt.tight_layout()
+    plt.ylabel('Cumulative return')
+    os.makedirs('results', exist_ok=True)
+    plt.savefig(f'results/walkforward_{interval}.png', dpi=150, bbox_inches='tight')
     plt.show()
 
 # %%
@@ -529,19 +538,23 @@ if __name__ == '__main__':
         min_trades=20
     )
 
+# %%
     bench_idx = pd.date_range('2018-01-01 00:00:00+00:00', '2026-09-30 23:55:00+00:00', freq='1D')
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
-
+    rfr = 1.10
 
     plt.figure(figsize=(12, 6))
     accurate_cum_returns_60m.plot(label='Momentum')
     vol_cum_returns_60m.plot(label='Vol_adjusted Momentum')
     trend_cum_returns_60m.plot(label='EWMA Trend Reversal')
     donchian_cum_returns_60m.plot(label='Donchian Breakout')
-    pd.Series(1.10 ** years, index=bench_idx).plot(label='8%/yr benchmark', ls='--', color='grey')
+    pd.Series(rfr ** years, index=bench_idx).plot(label=f'{int((rfr - 1)*100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
-    plt.title(f'Walkforward backtest {interval}')
+    plt.title(f'Walkforward backtest for {interval} bars and cost_bps={cost_bps}')
     plt.xticks(rotation=5)
     plt.grid()
     plt.tight_layout()
+    plt.ylabel('Cumulative return')
+    os.makedirs('results', exist_ok=True)
+    plt.savefig(f'results/walkforward_{interval}.png', dpi=150, bbox_inches='tight')
     plt.show()
