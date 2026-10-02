@@ -75,13 +75,12 @@ def accurate_momentum(
     n_ambiguous = 0
     n = len(df)
     o = df['Open'].to_numpy()
-    c = df['Close'].to_numpy()
     h = df['High'].to_numpy()
     l = df['Low'].to_numpy()
     pct = df['pct_change'].to_numpy()
 
     for i in range(n):
-        if in_trade and pct[i] >= in_cond:
+        if in_trade and pct[i - 1] >= in_cond:
             continue
 
         if in_trade: 

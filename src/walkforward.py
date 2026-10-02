@@ -382,7 +382,7 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.ylabel('Cumulative return')
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/walkforward_{interval}.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
     plt.show()
 
 # %%
@@ -467,7 +467,7 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.ylabel('Cumulative return')
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/walkforward_{interval}.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
     plt.show()
 
 # %%
@@ -556,5 +556,5 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.ylabel('Cumulative return')
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/walkforward_{interval}.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
     plt.show()

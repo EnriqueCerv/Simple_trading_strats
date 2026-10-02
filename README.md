@@ -355,17 +355,17 @@ Paths are relative to the repository root. To control the size, use HTML instead
 ### 5m bars
 
 <!-- placeholder: results/walkforward_5m.png -->
-![Walk-forward backtest, BTC-USD, 5m bars](results/walkforward_5m.png)
+![Walk-forward backtest, BTC-USD, 5m bars](results/walkforward_5m_10.0bps.png)
 
 ### 30m bars
 
-<!-- placeholder: results/walkforward_30m.png -->
-![Walk-forward backtest, BTC-USD, 30m bars](results/walkforward_30m.png)
+<!-- placeholder: results/walkforward_30m_10.0bps.png -->
+![Walk-forward backtest, BTC-USD, 30m bars](results/walkforward_30m_10.0bps.png)
 
 ### 60m bars
 
-<!-- placeholder: results/walkforward_60m.png -->
-![Walk-forward backtest, BTC-USD, 60m bars](results/walkforward_60m.png)
+<!-- placeholder: results/walkforward_60m_10.0bps.png -->
+![Walk-forward backtest, BTC-USD, 60m bars](results/walkforward_60m_10.0bps.png)
 
 ## Assumptions and limitations
 
