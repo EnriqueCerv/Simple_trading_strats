@@ -23,7 +23,6 @@ from src.strat_eval import strat_data
 # Base parameters per strategy (grid values override these) for 5min intervals
 # ---------------------------------------------------------------------------
 barrier_params = {
-    'interval': '5m',
     'change_period': 240,
     'in_cond': 0.01,
     'take_profit': 1.015,
@@ -35,7 +34,6 @@ strat_params = {
     'refined':      {'fn': master_refined_momentum,  'params': barrier_params},
     'accurate':     {'fn': master_accurate_momentum, 'params': barrier_params},
     'vol_adjusted': {'fn': master_vol_adjusted_momentum, 'params': {
-        'interval': '5m',
         'change_period': 240,
         'z_in': 1.8,
         'tp_sigma': 1.6,
@@ -45,13 +43,11 @@ strat_params = {
         'min_sigma': 0.0,
     }},
     'fixed_horizon': {'fn': master_momentum_fixed_horizon, 'params': {
-        'interval': '5m',
         'change_period': 240,
         'z_in': 1.8,
         'horizon': 22*5,
     }},
     'trend_reversal': {'fn': master_trend_reversal, 'params': {
-        'interval': '5m',
         'fast_window': 60,
         'slow_window': 180,
         'in_cond': 1.0,
@@ -59,7 +55,6 @@ strat_params = {
         'burn_spans': 3,
     }},
     'short_reversal': {'fn': master_short_reversal, 'params':{
-        'interval': '5m', 
         'lookback': 15,
         'fit_window': 7 * 1440,
         'refit_window': 1440 // 2,
@@ -67,8 +62,7 @@ strat_params = {
         'k_halflife': 2.5,
         'max_hold': float('inf')
     }},
-    'donchian_breakout': {'fn': master_donchian_breakout, 'params':{
-        'interval': '5m', 
+    'donchian_breakout': {'fn': master_donchian_breakout, 'params':{ 
         'lookback': int(60 * 4),
         'period': 14*5,
         'k': 3, 
@@ -215,6 +209,7 @@ def grid_search(
         strategy: str,
         ticker: str,
         data: dict,
+        interval: str,
         grid: dict[str, list],
         eval_kwargs: dict,
         constraint: Callable[[dict], bool] | None = None,
@@ -241,7 +236,7 @@ def grid_search(
         if verbose:
             print(f'[{k}/{len(combos)}] {overrides}')
         try:
-            df, trades, dates, n_ambiguous = _unpack(fn(ticker=ticker, data=data, **params))
+            df, trades, dates, n_ambiguous = _unpack(fn(ticker=ticker, data=data, interval=interval, **params))
             metrics = strat_data(
                 ticker, df, trades, dates,
                 strategy=strategy,
@@ -308,38 +303,11 @@ def summarise(
 # Get optimal params for walkforward
 # ---------------------------------------------------------------------------
 
-# def get_optimal_params(
-#         strategy: str,
-#         ticker: str,
-#         data: dict,
-#         grid: dict[str, list],
-#         eval_kwargs: dict,
-#         rank_by: str,
-#         min_trades: int,
-#         constraint: Callable[[dict], bool] | None = None
-#     ) -> pd.Series:
-
-#     results = grid_search(
-#             strategy=strategy,
-#             ticker=ticker,
-#             data=data,
-#             grid=grid,
-#             eval_kwargs=eval_kwargs,
-#             constraint=constraint,
-#             verbose=False
-#         )
-    
-#     ok = results.dropna(subset=[rank_by])
-#     eligible = ok[ok['n_trades'] >= min_trades]
-#     ranked = eligible.sort_values(rank_by, ascending=False)
-
-#     params = {param : ranked[param].iloc[0] for param in list(grid)}
-#     return params
-
 def get_optimal_params(
         strategy: str,
         ticker: str,
         data: dict,
+        interval: str,
         grid: dict[str, list],
         eval_kwargs: dict,
         rank_by: str,
@@ -350,6 +318,7 @@ def get_optimal_params(
     results = grid_search(
             strategy=strategy,
             ticker=ticker,
+            interval=interval,
             data=data,
             grid=grid,
             eval_kwargs=eval_kwargs,
@@ -392,6 +361,7 @@ if __name__ == '__main__':
         strategy=STRATEGY,
         ticker=TICKER,
         data=RAW_DATA,
+        interval=interval,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY)
@@ -416,6 +386,7 @@ if __name__ == '__main__':
         strategy=STRATEGY,
         ticker=TICKER,
         data=RAW_DATA,
+        interval=interval,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY),
@@ -439,6 +410,7 @@ if __name__ == '__main__':
         strategy=STRATEGY,
         ticker=TICKER,
         data=RAW_DATA,
+        interval=interval,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY),
@@ -463,6 +435,7 @@ if __name__ == '__main__':
         strategy=STRATEGY,
         ticker=TICKER,
         data=RAW_DATA,
+        interval=interval,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY),
@@ -487,6 +460,7 @@ if __name__ == '__main__':
         strategy=STRATEGY,
         ticker=TICKER,
         data=RAW_DATA,
+        interval=interval,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
         constraint=constraints.get(STRATEGY),

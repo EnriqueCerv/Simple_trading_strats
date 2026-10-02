@@ -1,5 +1,7 @@
 # %%
 import os 
+from joblib import Parallel, delayed
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -111,6 +113,7 @@ def compute_rolling_params(
         optimal_params = get_optimal_params(
             strategy=strategy,
             ticker=ticker,
+            interval=interval,
             data={ticker: train},
             grid=param_grids[interval][strategy],
             eval_kwargs=eval_kwargs,
@@ -125,10 +128,10 @@ def compute_rolling_params(
             continue
         params_log.append({'start': t_start, **optimal_params})
 
-        full_optimal_params = base_params | optimal_params | {'interval': interval}
+        full_optimal_params = base_params | optimal_params
 
         test = df.iloc[t - lookback : t_stop]
-        out = fn(ticker=ticker, data={ticker: test}, **full_optimal_params)
+        out = fn(ticker=ticker, interval=interval, data={ticker: test}, **full_optimal_params)
         test_df, trades, dates = out[:3]
 
         _, trades, dates = restrict_to_window(test_df, trades, dates, start=t_start, end=t_end)
@@ -172,7 +175,6 @@ def rolling_eval_strat(
 # Base parameters per strategy (grid values override these) for 5min intervals
 # ---------------------------------------------------------------------------
 barrier_params = {
-    'interval': '5m',
     'change_period': 240,
     'in_cond': 0.01,
     'take_profit': 1.015,
@@ -182,7 +184,6 @@ barrier_params = {
 strat_params = {
     'accurate':     {'fn': master_accurate_momentum, 'params': barrier_params},
     'vol_adjusted': {'fn': master_vol_adjusted_momentum, 'params': {
-        'interval': '5m',
         'change_period': 240,
         'z_in': 1.8,
         'tp_sigma': 1.6,
@@ -192,15 +193,13 @@ strat_params = {
         'min_sigma': 0.0,
     }},
     'trend_reversal': {'fn': master_trend_reversal, 'params': {
-        'interval': '5m',
         'fast_window': 60,
         'slow_window': 180,
         'in_cond': 1.0,
         'out_cond': -0.5,
         'burn_spans': 3,
     }},
-    'donchian_breakout': {'fn': master_donchian_breakout, 'params':{
-        'interval': '5m', 
+    'donchian_breakout': {'fn': master_donchian_breakout, 'params':{ 
         'lookback': int(60 * 4),
         'period': 14*5,
         'k': 3, 
@@ -212,38 +211,6 @@ strat_params = {
 # ---------------------------------------------------------------------------
 # Grids to search per strategy 
 # ---------------------------------------------------------------------------
-param_grids = {
-    'basic':         {'in_cond': [0.005, 0.01, 0.02],
-                      'take_profit': [1.01, 1.015, 1.02],
-                      'stop_loss': [0.98, 0.985, 0.99],
-                      'change_period': [60, 120, 180, 240, 300]},
-    'refined':       {'in_cond': [0.005, 0.01, 0.02],
-                      'take_profit': [1.01, 1.015, 1.02],
-                      'stop_loss': [0.98, 0.985, 0.99],
-                      'change_period': [60, 120, 180, 240, 300]},
-    'accurate':      {'in_cond': [0.005, 0.01, 0.02],
-                      'take_profit': [1.01, 1.015, 1.02],
-                      'stop_loss': [0.98, 0.985, 0.99],
-                      'change_period': [60, 120, 180, 240, 300]},
-    'vol_adjusted':  {'z_in': [1.5, 1.8, 2.1],
-                      'tp_sigma': [1.2, 1.6, 2.0],
-                      'sl_sigma': [1.2, 1.6, 2.0],
-                      'change_period': [60, 120, 180, 240, 300]},
-    'fixed_horizon': {'z_in': [1.5, 1.8, 2.1],
-                      'horizon': [12*5, 22*5, 48*5]},
-    'trend_reversal': {'in_cond': [0.0, 0.5, 1.0, 1.5, 2.0],
-                       'out_cond': [-1.0, -0.5, 0.0]},
-    'short_reversal': {'z_in': [1.5, 2, 2.5, 3, 3.5],
-                       'k_halflife': [1, 1.5, 2, 2.5, 3],
-                       },
-    'donchian_breakout': { # for 5min bars
-                        'lookback':   [240, 720, 1440, 2880, 10080],  # minutes: 4h, 12h, 1d, 2d, 1w
-                        'period':     [14*5, 48*5, 288*5],                  # 5m bars: 70 min, 4h, 1d
-                        'k':          [2, 3, 5, 8, 12],               # 5m ATR, so larger k for longer lookbacks
-                        'chandelier': [False, True],
-                        'intrabar': [False, True]
-                        }
-}
 
 param_grids = {
     '5m':{
@@ -418,7 +385,7 @@ if __name__ == '__main__':
 if __name__ == '__main__':
 
     # ---------------------------------------------------------------------------
-    # Evaluation settings 5min
+    # Evaluation settings 30min
     # ---------------------------------------------------------------------------
     interval = '30m'
     raw_data = get_data_binance(interval=interval)
@@ -500,7 +467,7 @@ if __name__ == '__main__':
 
 
     # ---------------------------------------------------------------------------
-    # Evaluation settings 360min
+    # Evaluation settings 60min
     # ---------------------------------------------------------------------------
 
     from src.data_binance import get_data_binance

@@ -110,34 +110,6 @@ def restrict_to_window(df, trades, dates, start=None, end=None):
 
     return df_w, new_trades, new_dates
 
-# def eval_strat(
-#         trades: list,
-#         amount: float,
-#         accumulates: bool = False,
-#         cost_bps: float = 5.0
-#     ) -> tuple:
-#     '''
-#     Input: tuples of trades from basic_momentum, amount to buy_in, boolean that determines whether we reinvest
-#     Output: net_profit and return per trade, total net_profit
-#     '''
-
-#     profits = []
-#     returns = []
-#     total_profit = 0
-
-#     for in_price, out_price in trades:
-#         n_stocks = amount / in_price
-#         gross = (out_price - in_price) * n_stocks
-#         cost  = (in_price + out_price) * n_stocks * cost_bps / 1e4
-
-#         net_profit = gross - cost
-#         profits.append(net_profit)
-#         returns.append(net_profit / amount)
-#         total_profit += net_profit
-#         amount += net_profit if accumulates else 0
-
-#     return profits, returns, total_profit
-
 def eval_strat(
         trades: list,
         amount: float,
@@ -190,7 +162,6 @@ if __name__ == '__main__':
 
 # Configs optimised with grid_search.py 
     barrier_params = {
-        'interval': interval,
         'data': raw_data,
         'change_period': 60,
         'in_cond': 0.01,
@@ -203,7 +174,6 @@ if __name__ == '__main__':
         'refined':      {'fn': master_refined_momentum, 'params': barrier_params},
         'accurate':     {'fn': master_accurate_momentum,'params': barrier_params},
         'vol_adjusted': {'fn': master_vol_adjusted_momentum, 'params': {
-            'interval': interval,
             'data': raw_data,
             'change_period': 240,
             'z_in': 1.5,
@@ -214,14 +184,12 @@ if __name__ == '__main__':
             'min_sigma': 0.0,
         }},
         'fixed_horizon': {'fn': master_momentum_fixed_horizon, 'params': {
-            'interval': interval,
             'data': raw_data,
             'change_period': 240,
             'z_in': 1.8,
             'horizon': 22*5
         }},
         'trend_reversal': {'fn': master_trend_reversal, 'params':{
-            'interval': interval,
             'data': raw_data, 
             'fast_window': 60,
             'slow_window': 180,
@@ -230,7 +198,6 @@ if __name__ == '__main__':
             'burn_spans': 3
         }},
         'short_reversal': {'fn': master_short_reversal, 'params':{
-            'interval': interval,
             'data': raw_data, 
             'lookback': 15,
             'fit_window': 7 * 1440,
@@ -240,7 +207,6 @@ if __name__ == '__main__':
             'max_hold': float('inf')
         }},
         'donchian_breakout': {'fn': master_donchian_breakout, 'params':{
-            'interval': interval,
             'data': raw_data, 
             'lookback': 2880,
             'period': 240,
@@ -265,7 +231,7 @@ if __name__ == '__main__':
     for name, cfg in strat_params.items():
         if name in {'basic', 'refined', 'fixed_horizon', 'short_reversal'}:
             continue
-        out = cfg['fn'](ticker=ticker, **cfg['params'])
+        out = cfg['fn'](ticker=ticker, interval=interval, **cfg['params'])
 
         # basic/refined return 3 values, accurate/vol_adjusted return 4
         df, trades, dates = out[:3]
@@ -286,5 +252,3 @@ if __name__ == '__main__':
         print(f'{name:<14}{len(profits):>8}{win_pct:>10.1%}'
             f'{float(total_profit):>14,.0f}{float(final_return):>12.3f}{sharpe:>9.3f}')
 
-
-# %%
