@@ -41,6 +41,7 @@ def strat_data(
         print(f"Total profit starting with {amount}USD, ({'accumulating' if accumulates else 'constant'}): {total_profit}")
         print(f'Cumulative return: {cum_return[-1]}')
         print(f'Win percentage: {win_pct:.3f}')
+        print(f'Sharpe: {sharpe:.3f}')
         print()
 
     if plot:
@@ -79,13 +80,19 @@ def strat_data(
 def restrict_to_window(df, trades, dates, start=None, end=None):
     '''
     Keep trades entered in [start, end); mark trades still open at `end`
-    to the last close before `end`. Signals are computed on full history,
-    so indicator warm-up does not consume the window.
+    (or with no exit) to the last close before `end`. Signals are computed on
+    full history, so indicator warm-up does not consume the window.
     Returns the sliced df (for benchmarks/plots), trades, dates.
     '''
     tz = df.index.tz
-    t0 = pd.Timestamp(start, tz=tz) if start else df.index[0]
-    t1 = pd.Timestamp(end, tz=tz) if end else df.index[-1] + pd.Timedelta(1, 'ns')
+
+    def _ts(x):
+        # pd.Timestamp(aware_ts, tz=...) raises, so only localise naive inputs
+        ts = pd.Timestamp(x)
+        return ts.tz_localize(tz) if ts.tzinfo is None and tz is not None else ts
+
+    t0 = _ts(start) if start is not None else df.index[0]
+    t1 = _ts(end) if end is not None else df.index[-1] + pd.Timedelta(1, 'ns')
 
     df_w = df[(df.index >= t0) & (df.index < t1)]
     if df_w.empty:
@@ -96,12 +103,40 @@ def restrict_to_window(df, trades, dates, start=None, end=None):
     for (p_in, p_out), (d_in, d_out) in zip(trades, dates):
         if not (t0 <= d_in < t1):
             continue
-        if d_out >= t1:
+        if d_out is None or p_out is None or d_out >= t1:
             p_out, d_out = last_close, last_date
         new_trades.append((p_in, p_out))
         new_dates.append((d_in, d_out))
 
     return df_w, new_trades, new_dates
+
+# def eval_strat(
+#         trades: list,
+#         amount: float,
+#         accumulates: bool = False,
+#         cost_bps: float = 5.0
+#     ) -> tuple:
+#     '''
+#     Input: tuples of trades from basic_momentum, amount to buy_in, boolean that determines whether we reinvest
+#     Output: net_profit and return per trade, total net_profit
+#     '''
+
+#     profits = []
+#     returns = []
+#     total_profit = 0
+
+#     for in_price, out_price in trades:
+#         n_stocks = amount / in_price
+#         gross = (out_price - in_price) * n_stocks
+#         cost  = (in_price + out_price) * n_stocks * cost_bps / 1e4
+
+#         net_profit = gross - cost
+#         profits.append(net_profit)
+#         returns.append(net_profit / amount)
+#         total_profit += net_profit
+#         amount += net_profit if accumulates else 0
+
+#     return profits, returns, total_profit
 
 def eval_strat(
         trades: list,
@@ -110,24 +145,25 @@ def eval_strat(
         cost_bps: float = 5.0
     ) -> tuple:
     '''
-    Input: tuples of trades from basic_momentum, amount to buy_in, boolean that determines whether we reinvest
-    Output: net_profit and return per trade, total net_profit
+    Input: list of (in_price, out_price) tuples, starting capital, whether to reinvest
+    Output: net profit per trade, net return per trade, total net profit
+
+    Per-trade net return depends only on prices and costs:
+        r = (p_out - p_in) / p_in - c * (p_in + p_out) / p_in,   c = cost_bps / 1e4
+    Capital only scales PnL: pnl = r * amount, with amount compounding if accumulates.
     '''
+    c = cost_bps / 1e4
+    returns = [(p_out - p_in) / p_in - c * (p_in + p_out) / p_in
+               for p_in, p_out in trades]
 
     profits = []
-    returns = []
-    total_profit = 0
-
-    for in_price, out_price in trades:
-        n_stocks = amount / in_price
-        gross = (out_price - in_price) * n_stocks
-        cost  = (in_price + out_price) * n_stocks * cost_bps / 1e4
-
-        net_profit = gross - cost
-        profits.append(net_profit)
-        returns.append(net_profit / amount)
-        total_profit += net_profit
-        amount += net_profit if accumulates else 0
+    total_profit = 0.0
+    for r in returns:
+        pnl = r * amount
+        profits.append(pnl)
+        total_profit += pnl
+        if accumulates:
+            amount += pnl
 
     return profits, returns, total_profit
        
@@ -136,6 +172,7 @@ def eval_strat(
 if __name__ == '__main__':
 
     from src.data import get_data_yf
+    from src.data_binance import get_data_binance
 
     from src.strategies.basic_momentum import master_basic_momentum
     from src.strategies.refined_momentum import master_refined_momentum
@@ -149,15 +186,16 @@ if __name__ == '__main__':
     ticker = 'BTC-USD'
     interval = '5m'
     raw_data = get_data_yf(interval=interval)
+    # raw_data = get_data_binance(interval=interval)
 
 # Configs optimised with grid_search.py 
     barrier_params = {
         'interval': interval,
         'data': raw_data,
-        'change_period': 240,
+        'change_period': 60,
         'in_cond': 0.01,
         'take_profit': 1.01,
-        'stop_loss': 0.99,
+        'stop_loss': 0.985,
     }
 
     strat_params = {
@@ -168,7 +206,7 @@ if __name__ == '__main__':
             'interval': interval,
             'data': raw_data,
             'change_period': 240,
-            'z_in': 1.8,
+            'z_in': 1.5,
             'tp_sigma': 1.6,
             'sl_sigma': 1.6,
             'vol_window': 576*5,
@@ -187,8 +225,8 @@ if __name__ == '__main__':
             'data': raw_data, 
             'fast_window': 60,
             'slow_window': 180,
-            'in_cond': 1.0,
-            'out_cond': -0.5,
+            'in_cond': 2.0,
+            'out_cond': 0.0,
             'burn_spans': 3
         }},
         'short_reversal': {'fn': master_short_reversal, 'params':{
@@ -248,3 +286,5 @@ if __name__ == '__main__':
         print(f'{name:<14}{len(profits):>8}{win_pct:>10.1%}'
             f'{float(total_profit):>14,.0f}{float(final_return):>12.3f}{sharpe:>9.3f}')
 
+
+# %%

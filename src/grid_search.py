@@ -83,16 +83,20 @@ strat_params = {
 param_grids = {
     'basic':         {'in_cond': [0.005, 0.01, 0.02],
                       'take_profit': [1.01, 1.015, 1.02],
-                      'stop_loss': [0.98, 0.985, 0.99]},
+                      'stop_loss': [0.98, 0.985, 0.99],
+                      'change_period': [60, 120, 180, 240, 300]},
     'refined':       {'in_cond': [0.005, 0.01, 0.02],
                       'take_profit': [1.01, 1.015, 1.02],
-                      'stop_loss': [0.98, 0.985, 0.99]},
+                      'stop_loss': [0.98, 0.985, 0.99],
+                      'change_period': [60, 120, 180, 240, 300]},
     'accurate':      {'in_cond': [0.005, 0.01, 0.02],
                       'take_profit': [1.01, 1.015, 1.02],
-                      'stop_loss': [0.98, 0.985, 0.99]},
+                      'stop_loss': [0.98, 0.985, 0.99],
+                      'change_period': [60, 120, 180, 240, 300]},
     'vol_adjusted':  {'z_in': [1.5, 1.8, 2.1],
                       'tp_sigma': [1.2, 1.6, 2.0],
-                      'sl_sigma': [1.2, 1.6, 2.0]},
+                      'sl_sigma': [1.2, 1.6, 2.0],
+                      'change_period': [60, 120, 180, 240, 300]},
     'fixed_horizon': {'z_in': [1.5, 1.8, 2.1],
                       'horizon': [12*5, 22*5, 48*5]},
     'trend_reversal': {'in_cond': [0.0, 0.5, 1.0, 1.5, 2.0],
@@ -143,9 +147,6 @@ eval_params = {name: dict(base_eval) for name in strat_params}
 # Silence per-run output during a grid search
 GRID_EVAL_OVERRIDES = {'plot': False, 'verbose': False}
 
-# DSR Settings
-N_TRIALS = None   # None = number of valid runs in this grid; set higher to count all trials you've run
-EULER_GAMMA = 0.5772156649015329
 
 TICKER = 'BTC-USD'
 RANK_BY = 'sharpe'            # must match a metric key returned by strat_data
@@ -217,6 +218,7 @@ def grid_search(
         grid: dict[str, list],
         eval_kwargs: dict,
         constraint: Callable[[dict], bool] | None = None,
+        verbose: bool = True
     ) -> pd.DataFrame:
     spec = strat_params[strategy]
     fn, base = spec['fn'], spec['params']
@@ -236,7 +238,8 @@ def grid_search(
         if constraint is not None and not constraint(params):
             continue
 
-        print(f'[{k}/{len(combos)}] {overrides}')
+        if verbose:
+            print(f'[{k}/{len(combos)}] {overrides}')
         try:
             df, trades, dates, n_ambiguous = _unpack(fn(ticker=ticker, data=data, **params))
             metrics = strat_data(
@@ -300,7 +303,73 @@ def summarise(
 
     return ranked
 
+# %%
+# ---------------------------------------------------------------------------
+# Get optimal params for walkforward
+# ---------------------------------------------------------------------------
 
+# def get_optimal_params(
+#         strategy: str,
+#         ticker: str,
+#         data: dict,
+#         grid: dict[str, list],
+#         eval_kwargs: dict,
+#         rank_by: str,
+#         min_trades: int,
+#         constraint: Callable[[dict], bool] | None = None
+#     ) -> pd.Series:
+
+#     results = grid_search(
+#             strategy=strategy,
+#             ticker=ticker,
+#             data=data,
+#             grid=grid,
+#             eval_kwargs=eval_kwargs,
+#             constraint=constraint,
+#             verbose=False
+#         )
+    
+#     ok = results.dropna(subset=[rank_by])
+#     eligible = ok[ok['n_trades'] >= min_trades]
+#     ranked = eligible.sort_values(rank_by, ascending=False)
+
+#     params = {param : ranked[param].iloc[0] for param in list(grid)}
+#     return params
+
+def get_optimal_params(
+        strategy: str,
+        ticker: str,
+        data: dict,
+        grid: dict[str, list],
+        eval_kwargs: dict,
+        rank_by: str,
+        min_trades: int,
+        constraint: Callable[[dict], bool] | None = None
+    ) -> dict | None:
+
+    results = grid_search(
+            strategy=strategy,
+            ticker=ticker,
+            data=data,
+            grid=grid,
+            eval_kwargs=eval_kwargs,
+            constraint=constraint,
+            verbose=False
+        )
+
+    if results.empty or rank_by not in results.columns:
+        return None 
+    if 'error' in results.columns:
+        results = results[results['error'].isna()]
+
+    ok = results.dropna(subset=[rank_by])
+    eligible = ok[ok['n_trades'] >= min_trades]
+    if eligible.empty:
+        return None  
+    ranked = eligible.sort_values(rank_by, ascending=False)
+
+    params = {param : ranked[param].iloc[0] for param in list(grid)}
+    return params
 # %%
 if __name__ == '__main__':
     from src.data import get_data_yf
@@ -325,7 +394,7 @@ if __name__ == '__main__':
         data=RAW_DATA,
         grid=grid,
         eval_kwargs=eval_params[STRATEGY],
-        constraint=constraints.get(STRATEGY),
+        constraint=constraints.get(STRATEGY)
     )
     # results.to_csv(f'grid_{STRATEGY}_{TICKER}.csv', index=False)
     ranked = summarise(results, grid_keys=list(grid))

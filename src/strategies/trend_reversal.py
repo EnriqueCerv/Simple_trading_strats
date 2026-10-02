@@ -49,7 +49,7 @@ def ewma_lambda(span: int) -> float:
 
 def kernel_l2_norm(lambda_fast: float, lambda_slow: float) -> float:
     # sum_j (lambda_slow^{j+1} - lambda_fast^{j+1})^2
-    return (
+    return np.sqrt(
         lambda_slow**2 / (1 - lambda_slow**2)
         - 2 * lambda_slow * lambda_fast / (1 - lambda_slow * lambda_fast)
         + lambda_fast**2 / (1 - lambda_fast**2)
@@ -157,10 +157,10 @@ import pandas as pd
 def in_cond_floor(
         interval: str,
         kappa: float,
-        fast_bars: int,
-        slow_bars: int,
+        fast_window: int,
+        slow_window: int,
         sigma: float | pd.Series,
-        hold_bars: float = 51,
+        hold_window: float = 51 * 5,
         shrink: float = 1.0,
     ) -> float | pd.Series:
     '''
@@ -171,9 +171,10 @@ def in_cond_floor(
     hold_bars : expected holding time in bars (e.g. median from a backtest)
     shrink    : fraction of the estimated drift you expect to actually realise (0 < shrink <= 1)
     '''
-    fast_bars, slow_bars = bars_in_period(interval=interval, window=fast_bars), bars_in_period(interval=interval, window=slow_bars)
+    fast_bars, slow_bars = bars_in_period(interval=interval, window=fast_window), bars_in_period(interval=interval, window=slow_window)
+    hold_bars = bars_in_period(interval=interval, window=hold_window)
     lam_f, lam_s = ewma_lambda(fast_bars), ewma_lambda(slow_bars)
-    w_norm = np.sqrt(kernel_l2_norm(lam_f, lam_s))
+    w_norm = kernel_l2_norm(lam_f, lam_s)
     lag_diff = (slow_bars - fast_bars) / 2
     return kappa * lag_diff / (shrink * sigma * w_norm * hold_bars)
        

@@ -187,13 +187,14 @@ cache_root = data_dir / 'cache' # Avoids duplicating 'binance/binance'
 cache_root.mkdir(parents=True, exist_ok=True)
 
 for interval in intervals:
-    data_file = data_dir / f'raw_data_{interval}.parquet'
+    data_file = data_dir / 'raw_data_60m.parquet' if interval == '1h' else data_dir / f'raw_data_{interval}.parquet'
 
     if os.path.exists(data_file) and not refresh:
-        print('Loading existing data from parquet...')
-        combined_df = pd.read_parquet(data_file)
-        raw_data = {t: combined_df.xs(t, level='Ticker')
-                    for t in tickers if t in combined_df.index.get_level_values('Ticker')}
+        print(f'{interval} Data already saved as parquet')
+        # print('Loading existing data from parquet...')
+        # combined_df = pd.read_parquet(data_file)
+        # raw_data = {t: combined_df.xs(t, level='Ticker')
+        #             for t in tickers if t in combined_df.index.get_level_values('Ticker')}
     else:
         print('Fetching data from data.binance.vision...')
         raw_data = {t: load(t, interval=interval, start=start, end=end, cache_root=cache_root)
@@ -201,6 +202,20 @@ for interval in intervals:
         combined_df = pd.concat(raw_data.values(), keys=raw_data.keys(), names=['Ticker', 'Date'])
         combined_df.to_parquet(data_file)
         print(f'Data saved to {data_file}')
+
+
+# %%
+def get_data_binance(interval):
+    cur_path = Path(__file__).resolve()
+    project_root = next(p for p in cur_path.parents if p.name == "Simple_trading_strats")
+    data_dir = os.path.join(os.path.join(project_root, 'Data'), 'binance')
+    data_file = os.path.join(data_dir, f'raw_data_{interval}.parquet')
+
+    combined_df = pd.read_parquet(data_file)
+    raw_data = {t: combined_df.xs(t, level='Ticker')
+                for t in tickers if t in combined_df.index.get_level_values('Ticker')}
+
+    return raw_data
 
 # %%
 if __name__ == '__main__':
