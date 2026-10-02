@@ -33,7 +33,8 @@ def get_data_yf(interval):
     return raw_data
 # %%
 tickers = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'USDT-USD', 'USDC-USD', 'XRP-USD']
-intervals = ['5m', '30m', '60m']
+intervals = ['5m', '30m', '60m', '1d']
+intervals = ['1d']
 period = 'max'
 
 # project_root = os.path.abspath(os.path.dirname(__file__))

@@ -56,10 +56,19 @@ def backtest_returns(
         cost_bps=cost_bps
     )
 
+    # rolling_returns = np.asarray(rolling_returns, dtype=float)
+    # cum_rolling_returns = ((1 + rolling_returns).cumprod()
+    #                        if len(rolling_returns) else np.array([]))
+    # rolling_profit = amount * (cum_rolling_returns[-1] - 1) if len(cum_rolling_returns) else 0.0
+    
     rolling_returns = np.asarray(rolling_returns, dtype=float)
-    cum_rolling_returns = ((1 + rolling_returns).cumprod()
-                           if len(rolling_returns) else np.array([]))
-    rolling_profit = amount * (cum_rolling_returns[-1] - 1) if len(cum_rolling_returns) else 0.0
+    if accumulates:
+        cum_rolling_returns = np.cumprod(1 + rolling_returns)
+    else:
+        cum_rolling_returns = 1 + np.cumsum(rolling_returns)
+    equity = amount * cum_rolling_returns
+    rolling_pnl = np.diff(equity, prepend=amount)
+    rolling_profit = equity[-1] - amount if len(equity) else 0.0
 
     exit_dates = pd.DatetimeIndex([d_out for _, d_out in rolling_dates])
     rolling_returns = pd.Series(rolling_returns, index=exit_dates)
@@ -274,6 +283,26 @@ param_grids = {
                               'chandelier': [False, True],
                               'intrabar':   [True]},
     },
+    '1d': {
+        'accurate': {'change_period': [4320, 7200, 14400, 28800],    # 3d, 5d, 10d, 20d
+                     'in_cond':       [0.03, 0.05, 0.10],
+                     'take_profit':   [1.05, 1.10, 1.20],
+                     'stop_loss':     [0.90, 0.93, 0.95]},
+        'vol_adjusted': {'change_period': [4320, 7200, 14400, 28800],  # 3d, 5d, 10d, 20d
+                         'vol_window':    [43200, 86400],              # 30d, 60d
+                         'z_in':          [1.5, 1.8, 2.1],
+                         'tp_sigma':      [1.2, 1.6, 2.0],
+                         'sl_sigma':      [1.2, 1.6, 2.0]},
+        'trend_reversal': {'fast_window': [4320, 7200, 14400, 28800],      # 3d, 5d, 10d, 20d
+                           'slow_window': [28800, 57600, 86400, 144000],   # 20d, 40d, 60d, 100d
+                           'in_cond':     [0.5, 1.0, 1.5, 2.0],
+                           'out_cond':    [-0.5, 0.0, 0.5]},
+        'donchian_breakout': {'lookback':   [14400, 28800, 79200, 144000],  # 10d, 20d, 55d, 100d
+                              'period':     [14400, 20160, 28800],          # ATR: 10d, 14d, 20d
+                              'k':          [2, 3, 4, 6],                   # daily-ATR units
+                              'chandelier': [False, True],
+                              'intrabar':   [True]},
+    }
 
 }
 # Validity rules per strategy: return False to skip a combination
@@ -382,7 +411,7 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.ylabel('Cumulative return')
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/{ticker}_walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
     plt.show()
 
 # %%
@@ -467,7 +496,7 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.ylabel('Cumulative return')
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/{ticker}_walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
     plt.show()
 
 # %%
@@ -556,5 +585,95 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.ylabel('Cumulative return')
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/{ticker}_walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
+    plt.show()
+
+
+# %%
+
+if __name__ == '__main__':
+
+
+    # ---------------------------------------------------------------------------
+    # Evaluation settings 1d
+    # ---------------------------------------------------------------------------
+
+    from src.data import get_data_yf
+    ticker = 'BTC-USD'
+    interval = '1d'
+    raw_data = get_data_yf(interval=interval)
+    lookback = 730 # every 2years
+    rebalance_freq = 60 # every 90 days
+
+    strategy = 'accurate'
+    accurate_pnl_1d, accurate_profit_1d, accurate_returns_1d, accurate_cum_returns_1d, _, accurate_logs_1d = backtest_returns(
+        ticker=ticker,
+        data=raw_data,
+        interval=interval,
+        strategy=strategy,
+        lookback=lookback,
+        rebalance_freq=rebalance_freq,
+        eval_kwargs=eval_params[strategy],
+        rank_by='sharpe',
+        min_trades=10
+    )
+
+    strategy = 'vol_adjusted'
+    vol_pnl_1d, vol_profit_1d, vol_returns_1d, vol_cum_returns_1d, _, vol_logs_1d = backtest_returns(
+        ticker=ticker,
+        data=raw_data,
+        interval=interval,
+        strategy=strategy,
+        lookback=lookback,
+        rebalance_freq=rebalance_freq,
+        eval_kwargs=eval_params[strategy],
+        rank_by='sharpe',
+        min_trades=10
+    )
+
+    strategy = 'trend_reversal'
+    trend_pnl_1d, trend_profit_1d, trend_returns_1d, trend_cum_returns_1d, _, trend_logs_1d = backtest_returns(
+        ticker=ticker,
+        data=raw_data,
+        interval=interval,
+        strategy=strategy,
+        lookback=lookback,
+        rebalance_freq=rebalance_freq,
+        eval_kwargs=eval_params[strategy],
+        rank_by='sharpe',
+        min_trades=10
+    )
+
+    strategy = 'donchian_breakout'
+    donchian_pnl_1d, donchian_profit_1d, donchian_returns_1d, donchian_cum_returns_1d, _, donchian_logs_1d = backtest_returns(
+        ticker=ticker,
+        data=raw_data,
+        interval=interval,
+        strategy=strategy,
+        lookback=lookback,
+        rebalance_freq=rebalance_freq,
+        eval_kwargs=eval_params[strategy],
+        rank_by='sharpe',
+        min_trades=10
+    )
+
+# %%
+    bench_idx = pd.date_range('2018-01-01 00:00:00+00:00', '2026-09-30 23:55:00+00:00', freq='1D')
+    years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
+    rfr = 1.10
+
+    plt.figure(figsize=(12, 6))
+    accurate_cum_returns_1d.plot(label='Momentum')
+    vol_cum_returns_1d.plot(label='Vol_adjusted Momentum')
+    trend_cum_returns_1d.plot(label='EWMA Trend Reversal')
+    donchian_cum_returns_1d.plot(label='Donchian Breakout')
+    pd.Series(rfr ** years, index=bench_idx).plot(label=f'{int((rfr - 1)*100)}%/yr benchmark', ls='--', color='grey')
+    plt.legend()
+    plt.title(f'Walkforward backtest for {interval} bars and cost_bps={cost_bps}')
+    plt.xticks(rotation=5)
+    plt.grid()
+    plt.tight_layout()
+    plt.ylabel('Cumulative return')
+    os.makedirs('results', exist_ok=True)
+    plt.savefig(f'results/{ticker}_walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
     plt.show()

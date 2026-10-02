@@ -354,18 +354,23 @@ Paths are relative to the repository root. To control the size, use HTML instead
 
 ### 5m bars
 
-<!-- placeholder: results/walkforward_5m.png -->
-![Walk-forward backtest, BTC-USD, 5m bars](results/walkforward_5m_10.0bps.png)
+<!-- placeholder: results/BTC-USD_walkforward_5m.png -->
+![Walk-forward backtest, BTC-USD, 5m bars](results/BTC-USD_walkforward_5m_10.0bps.png)
 
 ### 30m bars
 
-<!-- placeholder: results/walkforward_30m_10.0bps.png -->
-![Walk-forward backtest, BTC-USD, 30m bars](results/walkforward_30m_10.0bps.png)
+<!-- placeholder: results/BTC-USD_walkforward_30m_10.0bps.png -->
+![Walk-forward backtest, BTC-USD, 30m bars](results/BTC-USD_walkforward_30m_10.0bps.png)
 
 ### 60m bars
 
-<!-- placeholder: results/walkforward_60m_10.0bps.png -->
-![Walk-forward backtest, BTC-USD, 60m bars](results/walkforward_60m_10.0bps.png)
+<!-- placeholder: results/BTC-USD_walkforward_60m_10.0bps.png -->
+![Walk-forward backtest, BTC-USD, 60m bars](results/BTC-USD_walkforward_60m_10.0bps.png)
+
+### 1d bars
+
+<!-- placeholder: results/BTC-USD_walkforward_60m_10.0bps.png -->
+![Walk-forward backtest, BTC-USD, 60m bars](results/BTC-USD_walkforward_1d_10.0bps.png)
 
 ## Assumptions and limitations
 
@@ -382,4 +387,4 @@ Paths are relative to the repository root. To control the size, use HTML instead
 
 ## Planned
 
-- Notebooks that display the data, more extensive walk-forward results, multi ticker strategies.
+- Notebooks that display the data, more extensive walk-forward results, walk-forward that chooses best parameter-strategy pair, multi ticker strategies.
