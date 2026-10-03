@@ -119,7 +119,7 @@ def compute_rolling_params(
         if len(train) < lookback:
             continue
 
-        optimal_params, _ = get_optimal_params(
+        optimal_params, _, _ = get_optimal_params(
             strategy=strategy,
             ticker=ticker,
             interval=interval,

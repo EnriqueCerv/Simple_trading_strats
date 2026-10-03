@@ -312,6 +312,7 @@ def get_optimal_params(
         eval_kwargs: dict,
         rank_by: str,
         min_trades: int,
+        rank_by_strat='total_return',
         constraint: Callable[[dict], bool] | None = None
     ) -> dict | None:
 
@@ -327,18 +328,20 @@ def get_optimal_params(
         )
 
     if results.empty or rank_by not in results.columns:
-        return None 
+        return None, -np.inf, -np.inf
     if 'error' in results.columns:
         results = results[results['error'].isna()]
 
     ok = results.dropna(subset=[rank_by])
     eligible = ok[ok['n_trades'] >= min_trades]
     if eligible.empty:
-        return None, -np.inf  
+        return None, -np.inf, -np.inf  
     
     ranked = eligible.sort_values(rank_by, ascending=False)
     params = {param : ranked[param].iloc[0] for param in list(grid)}
-    return params, ranked[rank_by].iloc[0]
+    best = ranked.iloc[0]
+
+    return params, float(best[rank_by]), float(best[rank_by_strat])
 # %%
 if __name__ == '__main__':    
     from src.data import get_data_yf
@@ -355,7 +358,7 @@ if __name__ == '__main__':
     MIN_TRADES = 20               # don't rank configs with too few trades to judge
     TOP_N = 5
 
-    optimal_params_donchian, metric = get_optimal_params(
+    optimal_params_donchian, metric, ret = get_optimal_params(
         strategy=STRATEGY,
         ticker=TICKER,
         interval=interval,

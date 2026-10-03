@@ -24,7 +24,9 @@ def backtest_returns_hybrid(
         lookback: int,
         rebalance_freq: int,
         eval_kwargs: dict,
-        rank_by: str,
+        rank_by_strat: str,
+        rank_by_grid: str,
+        min_score: float,
         min_trades: int,
         verbose: bool = True,
     ):
@@ -41,7 +43,9 @@ def backtest_returns_hybrid(
         lookback=lookback,
         rebalance_freq=rebalance_freq,
         eval_kwargs=eval_kwargs,
-        rank_by=rank_by,
+        rank_by_strat=rank_by_strat,
+        rank_by_grid=rank_by_grid,
+        min_score=min_score,
         min_trades=min_trades,
         verbose=verbose,
     )
@@ -79,7 +83,9 @@ def compute_rolling_params_hybrid(
         interval: str,
         strategies: list,
         eval_kwargs: dict,
-        rank_by: str,
+        rank_by_strat: str,
+        rank_by_grid: str,
+        min_score: float,
         min_trades: int,
         lookback: int,
         rebalance_freq: int,
@@ -108,23 +114,26 @@ def compute_rolling_params_hybrid(
         if len(train) < lookback:
             continue
 
-        best_score, best_strategy, best_params = 0, None, None
+        best_score, best_strategy, best_params, best_performance = 0, None, None, 0
 
         for strategy in strategies:
-            optimal_params, score = get_optimal_params(
+            optimal_params, score, performance = get_optimal_params(
                 strategy=strategy,
                 ticker=ticker,
                 interval=interval,
                 data={ticker: train},
                 grid=param_grids[interval][strategy],
                 eval_kwargs=eval_kwargs[strategy],
-                rank_by=rank_by,
+                rank_by=rank_by_grid,
                 min_trades=min_trades,
+                rank_by_strat=rank_by_strat,
                 constraint=constraints.get(strategy)
             )
 
-            if optimal_params is not None and score > best_score:
-                best_score, best_strategy, best_params = score, strategy, optimal_params
+            # if optimal_params is not None and score > best_score and performance > best_performance:
+            #     best_score, best_strategy, best_params, best_performance = score, strategy, optimal_params, performance
+            if optimal_params is not None and score > min_score and performance > best_performance:
+                best_score, best_strategy, best_params, best_performance = score, strategy, optimal_params, performance
 
         if best_params is None:
             params_log.append({'start': t_start, 'strategy': None})
@@ -132,11 +141,14 @@ def compute_rolling_params_hybrid(
         params_log.append({'start': t_start, 'strategy': best_strategy,
                    'is_score': best_score, 'params': best_params})
 
-        if rank_by == 'sharpe' and best_score == 0: 
+        if verbose:
+            print(f'[{i}/{len(starts)}] {t_start:%Y-%m-%d}, best strategy: {best_strategy}, best {rank_by_grid}: {best_score}', flush=True)
+
+        if rank_by_strat == 'sharpe' and best_score == 0: 
+            continue
+        elif rank_by_strat == 'total_return' and best_performance == 0:
             continue
         
-        if verbose:
-            print(f'[{i}/{len(starts)}] {t_start:%Y-%m-%d}, best strategy: {best_strategy}', flush=True)
 
         spec = strat_params[best_strategy]
         fn, base_params = spec['fn'], spec['params']
@@ -341,6 +353,7 @@ if __name__ == '__main__':
     from src.data_binance import get_data_binance
     ticker = 'BTC-USD'
     interval = '5m'
+    min_score = 3.5
     raw_data = get_data_binance(interval=interval)
     lookback = 90 * 24 * 60 // 5 # 60 days in bars
     rebalance_freq = 30 * 24 * 60 // 5 # weekly
@@ -353,7 +366,9 @@ if __name__ == '__main__':
         lookback=lookback,
         rebalance_freq=rebalance_freq,
         eval_kwargs=eval_params,
-        rank_by='sharpe',
+        rank_by_grid='sharpe',
+        rank_by_strat='total_return',
+        min_score=min_score,
         min_trades=20
     )
 
@@ -409,6 +424,7 @@ if __name__ == '__main__':
     # Evaluation settings 30min
     # ---------------------------------------------------------------------------
     interval = '30m'
+    min_score = 3
     raw_data = get_data_binance(interval=interval)
     lookback = 180 * 24 * 60 // 30 # 180 days in bars
     rebalance_freq = 30 * 24 * 60 // 30 # every 30 days
@@ -421,7 +437,9 @@ if __name__ == '__main__':
         lookback=lookback,
         rebalance_freq=rebalance_freq,
         eval_kwargs=eval_params,
-        rank_by='sharpe',
+        rank_by_grid='sharpe',
+        rank_by_strat='total_return',
+        min_score=min_score,
         min_trades=20
     )
 
@@ -481,6 +499,7 @@ if __name__ == '__main__':
     from src.data_binance import get_data_binance
     ticker = 'BTC-USD'
     interval = '60m'
+    min_score = 2.0
     raw_data = get_data_binance(interval=interval)
     lookback = 365 * 24 * 60 // 60 # every 365 days
     rebalance_freq = 60 * 24 * 60 // 60 # every 60 days
@@ -493,7 +512,9 @@ if __name__ == '__main__':
         lookback=lookback,
         rebalance_freq=rebalance_freq,
         eval_kwargs=eval_params,
-        rank_by='sharpe',
+        rank_by_grid='sharpe',
+        rank_by_strat='total_return',
+        min_score=min_score,
         min_trades=20
     )
 
@@ -553,6 +574,7 @@ if __name__ == '__main__':
     from src.data import get_data_yf
     ticker = 'BTC-USD'
     interval = '1d'
+    min_score = 1.5
     raw_data = get_data_yf(interval=interval)
     lookback = 730 # every 2years
     rebalance_freq = 60 # every 90 days
@@ -566,7 +588,9 @@ if __name__ == '__main__':
         lookback=lookback,
         rebalance_freq=rebalance_freq,
         eval_kwargs=eval_params,
-        rank_by='sharpe',
+        rank_by_grid='sharpe',
+        rank_by_strat='total_return',
+        min_score=min_score,
         min_trades=10
     )
 
