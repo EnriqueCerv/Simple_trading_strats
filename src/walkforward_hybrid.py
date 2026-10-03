@@ -6,9 +6,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import itertools
-from typing import Callable
-
 from src.strategies.accurate_momentum import master_accurate_momentum
 from src.strategies.vol_adjusted_momentum import master_vol_adjusted_momentum
 from src.strategies.trend_reversal import master_trend_reversal
@@ -19,11 +16,11 @@ from src.strat_eval import eval_strat, restrict_to_window
 # %%
 
 
-def backtest_returns(
+def backtest_returns_hybrid(
         ticker: str,
         data: dict,
         interval: str,
-        strategy: str,
+        strategies: list,
         lookback: int,
         rebalance_freq: int,
         eval_kwargs: dict,
@@ -32,15 +29,15 @@ def backtest_returns(
         verbose: bool = True,
     ):
     
-    amount = eval_kwargs['amount']
-    accumulates = eval_kwargs.get('accumulates', True)
-    cost_bps = eval_kwargs.get('cost_bps', 10.0)
+    amount = eval_kwargs[strategies[0]]['amount']
+    accumulates = eval_kwargs[strategies[0]].get('accumulates', True)
+    cost_bps = eval_kwargs[strategies[0]].get('cost_bps', 10.0)
 
-    rolling_trades, rolling_dates, params_log = compute_rolling_params(
+    rolling_trades, rolling_dates, params_log = compute_rolling_params_hybrid(
         ticker=ticker,
         data=data,
         interval=interval,
-        strategy=strategy,
+        strategies=strategies,
         lookback=lookback,
         rebalance_freq=rebalance_freq,
         eval_kwargs=eval_kwargs,
@@ -49,17 +46,12 @@ def backtest_returns(
         verbose=verbose,
     )
 
-    rolling_pnl, rolling_returns, _ = rolling_eval_strat(
+    rolling_pnl, rolling_returns, _ = rolling_eval_strat_hybrid(
         rolling_trades=rolling_trades,
         amount=amount,
         accumulates=accumulates,
         cost_bps=cost_bps
     )
-
-    # rolling_returns = np.asarray(rolling_returns, dtype=float)
-    # cum_rolling_returns = ((1 + rolling_returns).cumprod()
-    #                        if len(rolling_returns) else np.array([]))
-    # rolling_profit = amount * (cum_rolling_returns[-1] - 1) if len(cum_rolling_returns) else 0.0
     
     rolling_returns = np.asarray(rolling_returns, dtype=float)
     if accumulates:
@@ -81,11 +73,11 @@ def backtest_returns(
 # Rolling portfolio optimizer
 # # # # # # # # # # # # #
 
-def compute_rolling_params(
+def compute_rolling_params_hybrid(
         ticker: str,
         data: dict,
         interval: str,
-        strategy: str,
+        strategies: list,
         eval_kwargs: dict,
         rank_by: str,
         min_trades: int,
@@ -101,8 +93,7 @@ def compute_rolling_params(
     at t; only trades ENTERED in [t, t_end) are kept, and any still open at t_end
     are marked to the last close before t_end. Windows are therefore disjoint.
     '''
-    spec = strat_params[strategy]
-    fn, base_params = spec['fn'], spec['params']
+    
     df = data[ticker]
 
     rolling_trades, rolling_dates, params_log = [], [], []
@@ -112,35 +103,47 @@ def compute_rolling_params(
         t_start = df.index[t]
         t_stop = min(t + rebalance_freq, len(df))
         t_end = df.index[t_stop] if t_stop < len(df) else None    # exclusive bound
-        if verbose:
-            print(f'[{i}/{len(starts)}] {t_start:%Y-%m-%d} for {strategy}', flush=True)
 
         train = df.iloc[t - lookback : t].dropna()
         if len(train) < lookback:
             continue
 
-        optimal_params, _ = get_optimal_params(
-            strategy=strategy,
-            ticker=ticker,
-            interval=interval,
-            data={ticker: train},
-            grid=param_grids[interval][strategy],
-            eval_kwargs=eval_kwargs,
-            rank_by=rank_by,
-            min_trades=min_trades,
-            constraint=constraints.get(strategy)
-        )
-        if optimal_params is None:
-            if verbose:
-                print('    no eligible params -> flat this period')
-            params_log.append({'start': t_start})
-            continue
-        params_log.append({'start': t_start, **optimal_params})
+        best_score, best_strategy, best_params = 0, None, None
 
-        full_optimal_params = base_params | optimal_params
+        for strategy in strategies:
+            optimal_params, score = get_optimal_params(
+                strategy=strategy,
+                ticker=ticker,
+                interval=interval,
+                data={ticker: train},
+                grid=param_grids[interval][strategy],
+                eval_kwargs=eval_kwargs[strategy],
+                rank_by=rank_by,
+                min_trades=min_trades,
+                constraint=constraints.get(strategy)
+            )
+
+            if optimal_params is not None and score > best_score:
+                best_score, best_strategy, best_params = score, strategy, optimal_params
+
+        if best_params is None:
+            params_log.append({'start': t_start, 'strategy': None})
+            continue
+        params_log.append({'start': t_start, 'strategy': best_strategy,
+                   'is_score': best_score, 'params': best_params})
+
+        if rank_by == 'sharpe' and best_score == 0: 
+            continue
+        
+        if verbose:
+            print(f'[{i}/{len(starts)}] {t_start:%Y-%m-%d}, best strategy: {best_strategy}', flush=True)
+
+        spec = strat_params[best_strategy]
+        fn, base_params = spec['fn'], spec['params']
+        full_best_params = base_params | best_params
 
         test = df.iloc[t - lookback : t_stop]
-        out = fn(ticker=ticker, interval=interval, data={ticker: test}, **full_optimal_params)
+        out = fn(ticker=ticker, interval=interval, data={ticker: test}, **full_best_params)
         test_df, trades, dates = out[:3]
 
         _, trades, dates = restrict_to_window(test_df, trades, dates, start=t_start, end=t_end)
@@ -154,7 +157,7 @@ def compute_rolling_params(
     return rolling_trades, rolling_dates, params_log
 
 
-def rolling_eval_strat(
+def rolling_eval_strat_hybrid(
         rolling_trades: list,
         amount: float = 0,
         accumulates: bool = False,
@@ -325,6 +328,7 @@ base_eval = {
     'plot': False,
 }
 eval_params = {name: dict(base_eval) for name in strat_params}
+strategies = ['accurate', 'vol_adjusted', 'trend_reversal', 'donchian_breakout']
 # %%
 
 if __name__ == '__main__':
@@ -341,102 +345,61 @@ if __name__ == '__main__':
     lookback = 90 * 24 * 60 // 5 # 60 days in bars
     rebalance_freq = 30 * 24 * 60 // 5 # weekly
 
-    strategy = 'accurate'
-    accurate_pnl_5m, accurate_profit_5m, accurate_returns_5m, accurate_cum_returns_5m, _, accurate_logs_5m = backtest_returns(
+    hybrid_pnl_5m, hybrid_profit_5m, hybrid_returns_5m, hybrid_cum_returns_5m, _, hybrid_logs_5m = backtest_returns_hybrid(
         ticker=ticker,
         data=raw_data,
         interval=interval,
-        strategy=strategy,
+        strategies=strategies,
         lookback=lookback,
         rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
+        eval_kwargs=eval_params,
         rank_by='sharpe',
         min_trades=20
     )
 
-    strategy = 'vol_adjusted'
-    vol_pnl_5m, vol_profit_5m, vol_returns_5m, vol_cum_returns_5m, _, vol_logs_5m = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=20
-    )
-
-    strategy = 'trend_reversal'
-    trend_pnl_5m, trend_profit_5m, trend_returns_5m, trend_cum_returns_5m, _, trend_logs_5m = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=20
-    )
-
-    strategy = 'donchian_breakout'
-    donchian_pnl_5m, donchian_profit_5m, donchian_returns_5m, donchian_cum_returns_5m, _, donchian_logs_5m = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=20
-    )
-
+    
 # %%
-    bench_idx = pd.date_range(raw_data['BTC-USD'].index[lookback], '2026-09-30 23:55:00+00:00', freq='1D')
+    # load the per-strategy cum returns saved earlier
+    cum_df = pd.read_csv(f'results/walkforward_cum_returns_{interval}.csv',
+                         index_col='exit_time', parse_dates=True)
+    cum_df.index = pd.to_datetime(cum_df.index, utc=True)      # ensure tz-aware UTC, to match the hybrid
+
+    # add the hybrid as a new column (outer join on exit time)
+    hybrid = hybrid_cum_returns_5m.groupby(level=0).last().rename('hybrid')
+    combined_df = cum_df.join(hybrid, how='outer').sort_index()
+    combined_df.index.name = 'exit_time'
+
+    combined_df.to_csv(f'results/hybrid_walkforward_cum_returns_{interval}.csv')
+
+    # plot everything together
+    labels = {
+        'accurate':          'Momentum',
+        'vol_adjusted':      'Vol_adjusted Momentum',
+        'trend_reversal':    'EWMA Trend Reversal',
+        'donchian_breakout': 'Donchian Breakout',
+        'hybrid':            'Hybrid',
+    }
+
+    bench_idx = pd.date_range(raw_data[ticker].index[lookback], raw_data[ticker].index[-1], freq='1D')
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
     rfr = 1.10
 
     plt.figure(figsize=(12, 6))
-    accurate_cum_returns_5m.plot(label='Momentum')
-    vol_cum_returns_5m.plot(label='Vol_adjusted Momentum')
-    trend_cum_returns_5m.plot(label='EWMA Trend Reversal')
-    donchian_cum_returns_5m.plot(label='Donchian Breakout')
-    pd.Series(rfr ** years, index=bench_idx).plot(label=f'{int((rfr - 1)*100)}%/yr benchmark', ls='--', color='grey')
+    for col in combined_df.columns:
+        style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
+        combined_df[col].dropna().plot(label=labels.get(col, col), **style)
+    pd.Series(rfr ** years, index=bench_idx).plot(
+        label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
     plt.title(f'Walkforward backtest for {interval} bars and cost_bps={cost_bps}')
     plt.xticks(rotation=5)
     plt.grid()
-    plt.tight_layout()
     plt.ylabel('Cumulative return')
+    plt.tight_layout()
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/{ticker}_walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/{ticker}_all_walkforward_{interval}_{cost_bps}bps.png',
+                dpi=150, bbox_inches='tight')
     plt.show()
-
-    runs = {
-    'accurate':          (accurate_pnl_5m, accurate_cum_returns_5m),
-    'vol_adjusted':      (vol_pnl_5m,      vol_cum_returns_5m),
-    'trend_reversal':    (trend_pnl_5m,    trend_cum_returns_5m),
-    'donchian_breakout': (donchian_pnl_5m, donchian_cum_returns_5m),
-}
-    # pnl is a plain array, one entry per trade; give it the same exit-time index as cum_returns
-    pnl_df = pd.concat(
-        {name: pd.Series(pnl, index=cum.index).groupby(level=0).sum()
-         for name, (pnl, cum) in runs.items()},
-        axis=1,
-    ).sort_index()
-
-    cum_df = pd.concat(
-        {name: cum.groupby(level=0).last() for name, (_, cum) in runs.items()},
-        axis=1,
-    ).sort_index()
-
-    pnl_df.index.name = cum_df.index.name = 'exit_time'
-
-    pnl_df.to_csv(f'results/walkforward_pnl_{interval}.csv')
-    cum_df.to_csv(f'results/walkforward_cum_returns_{interval}.csv')
-
 
 # %%
 
@@ -450,101 +413,61 @@ if __name__ == '__main__':
     lookback = 180 * 24 * 60 // 30 # 180 days in bars
     rebalance_freq = 30 * 24 * 60 // 30 # every 30 days
 
-    strategy = 'accurate'
-    accurate_pnl_30m, accurate_profit_30m, accurate_returns_30m, accurate_cum_returns_30m, _, accurate_logs_30m = backtest_returns(
+    hybrid_pnl_30m, hybrid_profit_30m, hybrid_returns_30m, hybrid_cum_returns_30m, _, hybrid_logs_30m = backtest_returns_hybrid(
         ticker=ticker,
         data=raw_data,
         interval=interval,
-        strategy=strategy,
+        strategies=strategies,
         lookback=lookback,
         rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
+        eval_kwargs=eval_params,
         rank_by='sharpe',
         min_trades=20
     )
 
-    strategy = 'vol_adjusted'
-    vol_pnl_30m, vol_profit_30m, vol_returns_30m, vol_cum_returns_30m, _, vol_logs_30m = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=20
-    )
-
-    strategy = 'trend_reversal'
-    trend_pnl_30m, trend_profit_30m, trend_returns_30m, trend_cum_returns_30m, _, trend_logs_30m = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=20
-    )
-
-    strategy = 'donchian_breakout'
-    donchian_pnl_30m, donchian_profit_30m, donchian_returns_30m, donchian_cum_returns_30m, _, donchian_logs_30m = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=20
-    )
 
 # %%
-    bench_idx = pd.date_range(raw_data['BTC-USD'].index[lookback], '2026-09-30 23:55:00+00:00', freq='1D')
+    # load the per-strategy cum returns saved earlier
+    cum_df = pd.read_csv(f'results/walkforward_cum_returns_{interval}.csv',
+                         index_col='exit_time', parse_dates=True)
+    cum_df.index = pd.to_datetime(cum_df.index, utc=True)      # ensure tz-aware UTC, to match the hybrid
+
+    # add the hybrid as a new column (outer join on exit time)
+    hybrid = hybrid_cum_returns_30m.groupby(level=0).last().rename('hybrid')
+    combined_df = cum_df.join(hybrid, how='outer').sort_index()
+    combined_df.index.name = 'exit_time'
+
+    combined_df.to_csv(f'results/hybrid_walkforward_cum_returns_{interval}.csv')
+
+    # plot everything together
+    labels = {
+        'accurate':          'Momentum',
+        'vol_adjusted':      'Vol_adjusted Momentum',
+        'trend_reversal':    'EWMA Trend Reversal',
+        'donchian_breakout': 'Donchian Breakout',
+        'hybrid':            'Hybrid',
+    }
+
+    bench_idx = pd.date_range(raw_data[ticker].index[lookback], raw_data[ticker].index[-1], freq='1D')
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
     rfr = 1.10
 
     plt.figure(figsize=(12, 6))
-    accurate_cum_returns_30m.plot(label='Momentum')
-    vol_cum_returns_30m.plot(label='Vol_adjusted Momentum')
-    trend_cum_returns_30m.plot(label='EWMA Trend Reversal')
-    donchian_cum_returns_30m.plot(label='Donchian Breakout')
-    pd.Series(rfr ** years, index=bench_idx).plot(label=f'{int((rfr - 1)*100)}%/yr benchmark', ls='--', color='grey')
+    for col in combined_df.columns:
+        style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
+        combined_df[col].dropna().plot(label=labels.get(col, col), **style)
+    pd.Series(rfr ** years, index=bench_idx).plot(
+        label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
     plt.title(f'Walkforward backtest for {interval} bars and cost_bps={cost_bps}')
     plt.xticks(rotation=5)
     plt.grid()
-    plt.tight_layout()
     plt.ylabel('Cumulative return')
+    plt.tight_layout()
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/{ticker}_walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/{ticker}_all_walkforward_{interval}_{cost_bps}bps.png',
+                dpi=150, bbox_inches='tight')
     plt.show()
-
-    runs = {
-    'accurate':          (accurate_pnl_30m, accurate_cum_returns_30m),
-    'vol_adjusted':      (vol_pnl_30m,      vol_cum_returns_30m),
-    'trend_reversal':    (trend_pnl_30m,    trend_cum_returns_30m),
-    'donchian_breakout': (donchian_pnl_30m, donchian_cum_returns_30m),
-}
-    # pnl is a plain array, one entry per trade; give it the same exit-time index as cum_returns
-    pnl_df = pd.concat(
-        {name: pd.Series(pnl, index=cum.index).groupby(level=0).sum()
-         for name, (pnl, cum) in runs.items()},
-        axis=1,
-    ).sort_index()
-
-    cum_df = pd.concat(
-        {name: cum.groupby(level=0).last() for name, (_, cum) in runs.items()},
-        axis=1,
-    ).sort_index()
-
-    pnl_df.index.name = cum_df.index.name = 'exit_time'
-
-    pnl_df.to_csv(f'results/walkforward_pnl_{interval}.csv')
-    cum_df.to_csv(f'results/walkforward_cum_returns_{interval}.csv')
 
 # %%
 
@@ -562,101 +485,60 @@ if __name__ == '__main__':
     lookback = 365 * 24 * 60 // 60 # every 365 days
     rebalance_freq = 60 * 24 * 60 // 60 # every 60 days
 
-    strategy = 'accurate'
-    accurate_pnl_60m, accurate_profit_60m, accurate_returns_60m, accurate_cum_returns_60m, _, accurate_logs_60m = backtest_returns(
+    hybrid_pnl_60m, hybrid_profit_60m, hybrid_returns_60m, hybrid_cum_returns_60m, _, hybrid_logs_60m = backtest_returns_hybrid(
         ticker=ticker,
         data=raw_data,
         interval=interval,
-        strategy=strategy,
+        strategies=strategies,
         lookback=lookback,
         rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=20
-    )
-
-    strategy = 'vol_adjusted'
-    vol_pnl_60m, vol_profit_60m, vol_returns_60m, vol_cum_returns_60m, _, vol_logs_60m = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=20
-    )
-
-    strategy = 'trend_reversal'
-    trend_pnl_60m, trend_profit_60m, trend_returns_60m, trend_cum_returns_60m, _, trend_logs_60m = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=20
-    )
-
-    strategy = 'donchian_breakout'
-    donchian_pnl_60m, donchian_profit_60m, donchian_returns_60m, donchian_cum_returns_60m, _, donchian_logs_60m = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
+        eval_kwargs=eval_params,
         rank_by='sharpe',
         min_trades=20
     )
 
 # %%
-    bench_idx = pd.date_range(raw_data['BTC-USD'].index[lookback], '2026-09-30 23:55:00+00:00', freq='1D')
+    # load the per-strategy cum returns saved earlier
+    cum_df = pd.read_csv(f'results/walkforward_cum_returns_{interval}.csv',
+                         index_col='exit_time', parse_dates=True)
+    cum_df.index = pd.to_datetime(cum_df.index, utc=True)      # ensure tz-aware UTC, to match the hybrid
+
+    # add the hybrid as a new column (outer join on exit time)
+    hybrid = hybrid_cum_returns_60m.groupby(level=0).last().rename('hybrid')
+    combined_df = cum_df.join(hybrid, how='outer').sort_index()
+    combined_df.index.name = 'exit_time'
+
+    combined_df.to_csv(f'results/hybrid_walkforward_cum_returns_{interval}.csv')
+
+    # plot everything together
+    labels = {
+        'accurate':          'Momentum',
+        'vol_adjusted':      'Vol_adjusted Momentum',
+        'trend_reversal':    'EWMA Trend Reversal',
+        'donchian_breakout': 'Donchian Breakout',
+        'hybrid':            'Hybrid',
+    }
+
+    bench_idx = pd.date_range(raw_data[ticker].index[lookback], raw_data[ticker].index[-1], freq='1D')
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
     rfr = 1.10
 
     plt.figure(figsize=(12, 6))
-    accurate_cum_returns_60m.plot(label='Momentum')
-    vol_cum_returns_60m.plot(label='Vol_adjusted Momentum')
-    trend_cum_returns_60m.plot(label='EWMA Trend Reversal')
-    donchian_cum_returns_60m.plot(label='Donchian Breakout')
-    pd.Series(rfr ** years, index=bench_idx).plot(label=f'{int((rfr - 1)*100)}%/yr benchmark', ls='--', color='grey')
+    for col in combined_df.columns:
+        style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
+        combined_df[col].dropna().plot(label=labels.get(col, col), **style)
+    pd.Series(rfr ** years, index=bench_idx).plot(
+        label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
     plt.title(f'Walkforward backtest for {interval} bars and cost_bps={cost_bps}')
     plt.xticks(rotation=5)
     plt.grid()
-    plt.tight_layout()
     plt.ylabel('Cumulative return')
+    plt.tight_layout()
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/{ticker}_walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/{ticker}_all_walkforward_{interval}_{cost_bps}bps.png',
+                dpi=150, bbox_inches='tight')
     plt.show()
-
-    runs = {
-    'accurate':          (accurate_pnl_60m, accurate_cum_returns_60m),
-    'vol_adjusted':      (vol_pnl_60m,      vol_cum_returns_60m),
-    'trend_reversal':    (trend_pnl_60m,    trend_cum_returns_60m),
-    'donchian_breakout': (donchian_pnl_60m, donchian_cum_returns_60m),
-}
-    # pnl is a plain array, one entry per trade; give it the same exit-time index as cum_returns
-    pnl_df = pd.concat(
-        {name: pd.Series(pnl, index=cum.index).groupby(level=0).sum()
-         for name, (pnl, cum) in runs.items()},
-        axis=1,
-    ).sort_index()
-
-    cum_df = pd.concat(
-        {name: cum.groupby(level=0).last() for name, (_, cum) in runs.items()},
-        axis=1,
-    ).sort_index()
-
-    pnl_df.index.name = cum_df.index.name = 'exit_time'
-
-    pnl_df.to_csv(f'results/walkforward_pnl_{interval}.csv')
-    cum_df.to_csv(f'results/walkforward_cum_returns_{interval}.csv')
 
 
 # %%
@@ -676,97 +558,57 @@ if __name__ == '__main__':
     rebalance_freq = 60 # every 90 days
 
     strategy = 'accurate'
-    accurate_pnl_1d, accurate_profit_1d, accurate_returns_1d, accurate_cum_returns_1d, _, accurate_logs_1d = backtest_returns(
+    hybrid_pnl_1d, hybrid_profit_1d, hybrid_returns_1d, hybrid_cum_returns_1d, _, hybrid_logs_1d = backtest_returns_hybrid(
         ticker=ticker,
         data=raw_data,
         interval=interval,
-        strategy=strategy,
+        strategies=strategies,
         lookback=lookback,
         rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=10
-    )
-
-    strategy = 'vol_adjusted'
-    vol_pnl_1d, vol_profit_1d, vol_returns_1d, vol_cum_returns_1d, _, vol_logs_1d = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=10
-    )
-
-    strategy = 'trend_reversal'
-    trend_pnl_1d, trend_profit_1d, trend_returns_1d, trend_cum_returns_1d, _, trend_logs_1d = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
-        rank_by='sharpe',
-        min_trades=10
-    )
-
-    strategy = 'donchian_breakout'
-    donchian_pnl_1d, donchian_profit_1d, donchian_returns_1d, donchian_cum_returns_1d, _, donchian_logs_1d = backtest_returns(
-        ticker=ticker,
-        data=raw_data,
-        interval=interval,
-        strategy=strategy,
-        lookback=lookback,
-        rebalance_freq=rebalance_freq,
-        eval_kwargs=eval_params[strategy],
+        eval_kwargs=eval_params,
         rank_by='sharpe',
         min_trades=10
     )
 
 # %%
-    bench_idx = pd.date_range(raw_data['BTC-USD'].index[lookback], '2026-09-30 23:55:00+00:00', freq='1D')
+    # load the per-strategy cum returns saved earlier
+    cum_df = pd.read_csv(f'results/walkforward_cum_returns_{interval}.csv',
+                         index_col='exit_time', parse_dates=True)
+    cum_df.index = pd.to_datetime(cum_df.index, utc=True)      # ensure tz-aware UTC, to match the hybrid
+
+    # add the hybrid as a new column (outer join on exit time)
+    hybrid = hybrid_cum_returns_1d.groupby(level=0).last().rename('hybrid')
+    combined_df = cum_df.join(hybrid, how='outer').sort_index()
+    combined_df.index.name = 'exit_time'
+
+    combined_df.to_csv(f'results/hybrid_walkforward_cum_returns_{interval}.csv')
+
+    # plot everything together
+    labels = {
+        'accurate':          'Momentum',
+        'vol_adjusted':      'Vol_adjusted Momentum',
+        'trend_reversal':    'EWMA Trend Reversal',
+        'donchian_breakout': 'Donchian Breakout',
+        'hybrid':            'Hybrid',
+    }
+
+    bench_idx = pd.date_range(raw_data[ticker].index[lookback], raw_data[ticker].index[-1], freq='1D')
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
     rfr = 1.10
 
     plt.figure(figsize=(12, 6))
-    accurate_cum_returns_1d.plot(label='Momentum')
-    vol_cum_returns_1d.plot(label='Vol_adjusted Momentum')
-    trend_cum_returns_1d.plot(label='EWMA Trend Reversal')
-    donchian_cum_returns_1d.plot(label='Donchian Breakout')
-    pd.Series(rfr ** years, index=bench_idx).plot(label=f'{int((rfr - 1)*100)}%/yr benchmark', ls='--', color='grey')
+    for col in combined_df.columns:
+        style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
+        combined_df[col].dropna().plot(label=labels.get(col, col), **style)
+    pd.Series(rfr ** years, index=bench_idx).plot(
+        label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
     plt.title(f'Walkforward backtest for {interval} bars and cost_bps={cost_bps}')
     plt.xticks(rotation=5)
     plt.grid()
-    plt.tight_layout()
     plt.ylabel('Cumulative return')
+    plt.tight_layout()
     os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/{ticker}_walkforward_{interval}_{cost_bps}bps.png', dpi=150, bbox_inches='tight')
+    plt.savefig(f'results/{ticker}_all_walkforward_{interval}_{cost_bps}bps.png',
+                dpi=150, bbox_inches='tight')
     plt.show()
-
-    runs = {
-    'accurate':          (accurate_pnl_1d, accurate_cum_returns_1d),
-    'vol_adjusted':      (vol_pnl_1d,      vol_cum_returns_1d),
-    'trend_reversal':    (trend_pnl_1d,    trend_cum_returns_1d),
-    'donchian_breakout': (donchian_pnl_1d, donchian_cum_returns_1d),
-}
-    # pnl is a plain array, one entry per trade; give it the same exit-time index as cum_returns
-    pnl_df = pd.concat(
-        {name: pd.Series(pnl, index=cum.index).groupby(level=0).sum()
-         for name, (pnl, cum) in runs.items()},
-        axis=1,
-    ).sort_index()
-
-    cum_df = pd.concat(
-        {name: cum.groupby(level=0).last() for name, (_, cum) in runs.items()},
-        axis=1,
-    ).sort_index()
-
-    pnl_df.index.name = cum_df.index.name = 'exit_time'
-
-    pnl_df.to_csv(f'results/walkforward_pnl_{interval}.csv')
-    cum_df.to_csv(f'results/walkforward_cum_returns_{interval}.csv')

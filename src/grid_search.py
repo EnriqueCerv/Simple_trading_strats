@@ -334,16 +334,38 @@ def get_optimal_params(
     ok = results.dropna(subset=[rank_by])
     eligible = ok[ok['n_trades'] >= min_trades]
     if eligible.empty:
-        return None  
+        return None, -np.inf  
+    
     ranked = eligible.sort_values(rank_by, ascending=False)
-
     params = {param : ranked[param].iloc[0] for param in list(grid)}
-    return params
+    return params, ranked[rank_by].iloc[0]
 # %%
-if __name__ == '__main__':
+if __name__ == '__main__':    
     from src.data import get_data_yf
     interval = '5m'
     RAW_DATA = get_data_yf(interval=interval)
+# %%
+if __name__ == '__main__':
+    # ---------------------------------------------------------------------------
+    # Get optimal params example
+    # ---------------------------------------------------------------------------
+    TICKER = 'BTC-USD'
+    STRATEGY = 'donchian_breakout'   # any key of strat_params
+    RANK_BY = 'sharpe'            # must match a metric key returned by strat_data
+    MIN_TRADES = 20               # don't rank configs with too few trades to judge
+    TOP_N = 5
+
+    optimal_params_donchian, metric = get_optimal_params(
+        strategy=STRATEGY,
+        ticker=TICKER,
+        interval=interval,
+        data=RAW_DATA,
+        grid=param_grids[STRATEGY],
+        eval_kwargs=eval_params[STRATEGY],
+        rank_by = 'sharpe',
+        min_trades=20,
+        constraint=constraints.get(STRATEGY)
+    )
 # %%
 if __name__ == '__main__':
 
