@@ -317,6 +317,8 @@ Test windows are disjoint, and their trades are chained into a single out-of-sam
 
 `python -m src.walkforward` runs all four strategies on BTC-USD for 5m, 30m and 60m bars and shows one figure per bar size. A full grid search is repeated at every re-fit, so expect a long runtime, particularly on 5m bars. The grids are defined per bar size in `param_grids` inside `walkforward.py`.
 
+`python -m src.walkforward_hybrid` runs a hybrid strategy which on each rebalance period performs a grid search over all (or a choice of) strategies, and selects the best performing according to the score (default Sharpe ratio) for the next test period. Grids are defined in the same way as above.
+
 ### Adding a strategy
 
 1. Create `src/strategies/<name>.py` with a `master_<name>(ticker, data, interval, **params)` function returning `(df, trades, dates)`.
@@ -354,23 +356,23 @@ Paths are relative to the repository root. To control the size, use HTML instead
 
 ### 5m bars
 
-<!-- placeholder: results/BTC-USD_walkforward_5m.png -->
-![Walk-forward backtest, BTC-USD, 5m bars](results/BTC-USD_walkforward_5m_10.0bps.png)
+<!-- placeholder: results/BTC-USD_all_walkforward_5m.png -->
+![Walk-forward backtest, BTC-USD, 5m bars](results/BTC-USD_all_walkforward_5m_10.0bps.png)
 
 ### 30m bars
 
-<!-- placeholder: results/BTC-USD_walkforward_30m_10.0bps.png -->
-![Walk-forward backtest, BTC-USD, 30m bars](results/BTC-USD_walkforward_30m_10.0bps.png)
+<!-- placeholder: results/BTC-USD_all_walkforward_30m_10.0bps.png -->
+![Walk-forward backtest, BTC-USD, 30m bars](results/BTC-USD_all_walkforward_30m_10.0bps.png)
 
 ### 60m bars
 
-<!-- placeholder: results/BTC-USD_walkforward_60m_10.0bps.png -->
-![Walk-forward backtest, BTC-USD, 60m bars](results/BTC-USD_walkforward_60m_10.0bps.png)
+<!-- placeholder: results/BTC-USD_all_walkforward_60m_10.0bps.png -->
+![Walk-forward backtest, BTC-USD, 60m bars](results/BTC-USD_all_walkforward_60m_10.0bps.png)
 
 ### 1d bars
 
-<!-- placeholder: results/BTC-USD_walkforward_60m_10.0bps.png -->
-![Walk-forward backtest, BTC-USD, 60m bars](results/BTC-USD_walkforward_1d_10.0bps.png)
+<!-- placeholder: results/BTC-USD_all_walkforward_60m_10.0bps.png -->
+![Walk-forward backtest, BTC-USD, 60m bars](results/BTC-USD_all_walkforward_1d_10.0bps.png)
 
 ## Assumptions and limitations
 
