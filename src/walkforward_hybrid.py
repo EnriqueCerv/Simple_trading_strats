@@ -399,10 +399,17 @@ if __name__ == '__main__':
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
     rfr = 1.10
 
+    cum = pd.concat(
+        {s: c.groupby(level=0).last() for s, c in cum_df.items()}, axis=1
+    ).sort_index().ffill().fillna(1.0)
+
+    ew_static = cum.mean(axis=1)
+
     plt.figure(figsize=(12, 6))
     for col in combined_df.columns:
         style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
         combined_df[col].dropna().plot(label=labels.get(col, col), **style)
+    ew_static.plot(label = 'Equal weight', lw=2.2)
     pd.Series(rfr ** years, index=bench_idx).plot(
         label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
@@ -470,10 +477,17 @@ if __name__ == '__main__':
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
     rfr = 1.10
 
+    cum = pd.concat(
+        {s: c.groupby(level=0).last() for s, c in cum_df.items()}, axis=1
+    ).sort_index().ffill().fillna(1.0)
+
+    ew_static = cum.mean(axis=1)
+
     plt.figure(figsize=(12, 6))
     for col in combined_df.columns:
         style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
         combined_df[col].dropna().plot(label=labels.get(col, col), **style)
+    ew_static.plot(label = 'Equal weight', lw=2.2)
     pd.Series(rfr ** years, index=bench_idx).plot(
         label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
@@ -544,10 +558,17 @@ if __name__ == '__main__':
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
     rfr = 1.10
 
+    cum = pd.concat(
+        {s: c.groupby(level=0).last() for s, c in cum_df.items()}, axis=1
+    ).sort_index().ffill().fillna(1.0)
+
+    ew_static = cum.mean(axis=1)
+
     plt.figure(figsize=(12, 6))
     for col in combined_df.columns:
         style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
         combined_df[col].dropna().plot(label=labels.get(col, col), **style)
+    ew_static.plot(label = 'Equal weight', lw=2.2)
     pd.Series(rfr ** years, index=bench_idx).plot(
         label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
@@ -560,6 +581,7 @@ if __name__ == '__main__':
     plt.savefig(f'results/{ticker}_all_walkforward_{interval}_{cost_bps}bps.png',
                 dpi=150, bbox_inches='tight')
     plt.show()
+
 
 
 # %%
@@ -620,10 +642,17 @@ if __name__ == '__main__':
     years = (bench_idx - bench_idx[0]) / pd.Timedelta(days=365.25)
     rfr = 1.10
 
+    cum = pd.concat(
+        {s: c.groupby(level=0).last() for s, c in cum_df.items()}, axis=1
+    ).sort_index().ffill().fillna(1.0)
+
+    ew_static = cum.mean(axis=1)
+
     plt.figure(figsize=(12, 6))
     for col in combined_df.columns:
         style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
         combined_df[col].dropna().plot(label=labels.get(col, col), **style)
+    ew_static.plot(label = 'Equal weight', lw=2.2)
     pd.Series(rfr ** years, index=bench_idx).plot(
         label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
@@ -636,3 +665,4 @@ if __name__ == '__main__':
     plt.savefig(f'results/{ticker}_all_walkforward_{interval}_{cost_bps}bps.png',
                 dpi=150, bbox_inches='tight')
     plt.show()
+

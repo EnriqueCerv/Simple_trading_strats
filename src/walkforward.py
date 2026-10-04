@@ -112,14 +112,12 @@ def compute_rolling_params(
         t_start = df.index[t]
         t_stop = min(t + rebalance_freq, len(df))
         t_end = df.index[t_stop] if t_stop < len(df) else None    # exclusive bound
-        if verbose:
-            print(f'[{i}/{len(starts)}] {t_start:%Y-%m-%d} for {strategy}', flush=True)
 
         train = df.iloc[t - lookback : t].dropna()
         if len(train) < lookback:
             continue
 
-        optimal_params, _, _ = get_optimal_params(
+        optimal_params, score, ret = get_optimal_params(
             strategy=strategy,
             ticker=ticker,
             interval=interval,
@@ -136,6 +134,9 @@ def compute_rolling_params(
             params_log.append({'start': t_start})
             continue
         params_log.append({'start': t_start, **optimal_params})
+
+        if verbose:
+            print(f'[{i}/{len(starts)}] {t_start:%Y-%m-%d} for {strategy}, with score {score} and return {ret}', flush=True)
 
         full_optimal_params = base_params | optimal_params
 
