@@ -1,6 +1,6 @@
 # Simple trading strats
 
-Backtests of simple long-only intraday strategies on crypto spot (BTC, ETH, LTC, XRP against USD/USDT), with a shared evaluation module, a grid search, and a walk-forward test that re-fits each strategy's parameters on a rolling window.
+Backtests of simple long-only strategies on crypto spot (BTC, ETH, LTC, XRP against USD/USDT) on 5m, 30m, 60m and 1d bars. The code has a shared evaluation module, a grid search, a walk-forward test that re-fits each strategy's parameters on a rolling window, and a hybrid walk-forward that also chooses the strategy at each re-fit. A statistics module and a notebook compare the out-of-sample results with buy-and-hold.
 
 This is research code, not trading advice.
 
@@ -23,14 +23,18 @@ Simple_trading_strats/          # the root folder must keep this name: data path
 │   │   ├── cache/              # raw kline zips from data.binance.vision
 │   │   └── raw_data_{5m,30m,60m}.parquet
 │   └── yf/
-│       └── raw_data_{5m,30m,60m}.csv
-├── results/                    # walk-forward plots shown below
+│       └── raw_data_{interval}.csv   # the 1d file is used by the walk-forward
+├── notebooks/
+│   └── strategy_comparison.ipynb     # figures and statistics from the saved results
+├── results/                    # walk-forward CSVs and the figures shown below
 └── src/
     ├── data.py                 # yfinance loader
     ├── data_binance.py         # Binance public-data loader
     ├── strat_eval.py           # trade-list evaluation, costs, Sharpe, trade plots
     ├── grid_search.py          # parameter grids, grid search, ranking
     ├── walkforward.py          # rolling re-fit and out-of-sample backtest
+    ├── walkforward_hybrid.py   # walk-forward that also picks the strategy at each re-fit
+    ├── stats.py                # daily-return statistics, bootstrap Sharpe tests, deflated Sharpe
     └── strategies/
         ├── accurate_momentum.py
         ├── vol_adjusted_momentum.py
@@ -56,7 +60,7 @@ The last three files are earlier or alternative momentum variants (close-only fi
 
 - Long-only, one position at a time, full notional per trade.
 - A signal computed on the close of bar $t$ is traded at the open of bar $t+1$. The only exception is the Donchian breakout in intrabar mode.
-- Every window parameter is given in **minutes** and converted to bars by integer division with the bar size, so the same configuration can be run on 5m, 30m or 60m bars.
+- Every window parameter is given in **minutes** and converted to bars by integer division with the bar size, so the same configuration can be run on 5m, 30m, 60m or 1d bars.
 - Lags are counted in bars rather than clock time, which suits markets that trade 24/7 without session breaks.
 - Each strategy exposes a `master_*` function that returns `(df, trades, dates)`, where `trades` is a list of `(price_in, price_out)` and `dates` a list of `(date_in, date_out)`. The two barrier strategies also return `n_ambiguous` for the number of trades executed without ordering of High/Low.
 
@@ -179,7 +183,7 @@ where the anchor $A_t$ is the highest high since entry when `chandelier=True`, a
 | `chandelier` | Anchor the stop to the running high instead of the close |
 | `intrabar` | Intrabar fills instead of close-confirmed, next-open fills |
 
-Because ATR is measured per bar, sensible values of `k` depend on the bar size, which is why the grids differ across 5m, 30m and 60m.
+Because ATR is measured per bar, sensible values of `k` depend on the bar size, which is why the grids differ across bar sizes.
 
 ### 5. Short-horizon reversal (`short_reversal.py`)
 
@@ -217,23 +221,25 @@ where $k$ is `k_halflife`, with a minimum of one bar and a cap of `max_hold`. No
 Python 3.10 or newer.
 
 ```bash
-pip install numpy pandas scipy statsmodels matplotlib mplfinance yfinance requests pyarrow joblib
+pip install numpy pandas scipy statsmodels matplotlib seaborn mplfinance yfinance requests pyarrow joblib jupyter
 ```
 
-Run everything from the repository root so that the `src.` imports resolve. The files are written with `# %%` cell markers, so they can also be run cell by cell in VS Code or any editor with Jupyter-style cells.
+Run everything from the repository root so that the `src.` imports and the relative `results/` paths resolve. The notebook is the exception: it changes to the repository root itself. The files are written with `# %%` cell markers, so they can also be run cell by cell in VS Code or any editor with Jupyter-style cells.
 
 ### 1. Download data
 
 | Source | Command | Output | Use |
 |---|---|---|---|
-| Binance public data | `python -m src.data_binance` | `Data/binance/raw_data_{interval}.parquet` | Full history from 2018, used by the walk-forward |
-| yfinance | `python -m src.data` | `Data/yf/raw_data_{interval}.csv` | Short recent intraday history, handy for quick checks |
+| Binance public data | `python -m src.data_binance` | `Data/binance/raw_data_{interval}.parquet` | Full history from 2018, used by the 5m, 30m and 60m walk-forward |
+| yfinance | `python -m src.data` | `Data/yf/raw_data_{interval}.csv` | Daily bars, used by the 1d walk-forward. Also short recent intraday history, handy for quick checks |
 
 Notes on the Binance loader:
 
 - Set `intervals` near the bottom of `data_binance.py` to the bar sizes you need, in Binance notation: `['5m', '30m', '1h']`. The `1h` file is saved as `raw_data_60m.parquet`, and the rest of the code refers to that bar size as `'60m'`.
 - Downloaded zips are checksum-verified and cached under `Data/binance/cache`, so rebuilding a combined file with `refresh = True` is fast.
 - Keys follow the yfinance convention (`'BTC-USD'`), mapped internally to USDT pairs (`BTCUSDT`). Timestamps are UTC.
+
+The yfinance loader works the same way: set `intervals` in `data.py` (currently `['1d']`).
 
 Both loaders run their download step on import if the combined file is missing, and skip it otherwise.
 
@@ -315,64 +321,123 @@ At each re-fit time $t$:
 
 Test windows are disjoint, and their trades are chained into a single out-of-sample return series.
 
-`python -m src.walkforward` runs all four strategies on BTC-USD for 5m, 30m and 60m bars and shows one figure per bar size. A full grid search is repeated at every re-fit, so expect a long runtime, particularly on 5m bars. The grids are defined per bar size in `param_grids` inside `walkforward.py`.
+`python -m src.walkforward` runs all four strategies on BTC-USD for 5m, 30m, 60m and 1d bars and shows one figure per bar size. A full grid search is repeated at every re-fit, so expect a long runtime, particularly on 5m bars. The grids are defined per bar size in `param_grids` inside `walkforward.py`.
 
-`python -m src.walkforward_hybrid` runs a hybrid strategy which on each rebalance period performs a grid search over all (or a choice of) strategies, and selects the best performing according to the score (default Sharpe ratio) for the next test period. Grids are defined in the same way as above.
+For each bar size it saves, under `results/`:
+
+| File | Content |
+|---|---|
+| `walkforward_returns_{interval}.csv` | Net return of each trade, one column per strategy, indexed by exit time |
+| `walkforward_cum_returns_{interval}.csv` | Cumulative return after each trade |
+| `walkforward_pnl_{interval}.csv` | Profit of each trade in USD |
+| `{ticker}_walkforward_{interval}_{cost_bps}bps.png` | Figure of the four cumulative-return curves |
+
+### 5. Hybrid walk-forward
+
+```python
+from src.walkforward_hybrid import backtest_returns_hybrid, eval_params, strategies
+
+pnl, profit, returns, equity, dates, params_log = backtest_returns_hybrid(
+    ticker='BTC-USD', data=raw, interval='5m', strategies=strategies,
+    lookback=90 * bars_per_day, rebalance_freq=30 * bars_per_day,
+    eval_kwargs=eval_params, rank_by_grid='sharpe', rank_by_strat='total_return',
+    min_score=3.5, min_trades=20,
+)
+params_log               # strategy and parameters chosen at each re-fit
+```
+
+The hybrid uses the same train and test windows, but chooses a strategy as well as its parameters. At each re-fit time:
+
+1. Every strategy is grid-searched on the training window, and its best combination by `rank_by_grid` (Sharpe) among those with at least `min_trades` trades is kept.
+2. A strategy is eligible if that in-sample Sharpe is above `min_score` and its in-sample total return is positive.
+3. The eligible strategy with the highest `rank_by_strat` (total return) is traded in the test window. If none is eligible, the hybrid stays flat.
+
+`python -m src.walkforward_hybrid` runs it for all four bar sizes. Run `python -m src.walkforward` first: the hybrid script reads the per-strategy CSVs, adds a `hybrid` column and saves the result as `results/hybrid_walkforward_returns_{interval}.csv` and `results/hybrid_walkforward_cum_returns_{interval}.csv`. It also saves the combined figure `results/{ticker}_all_walkforward_{interval}_{cost_bps}bps.png`. Its grids and base parameters are defined in `walkforward_hybrid.py`.
+
+### 6. Summary statistics
+
+```python
+from src.stats import summary_table
+
+stats, bootstrap_sharpes = summary_table(
+    strategies=['BTC-USD', 'accurate', 'vol_adjusted', 'trend_reversal', 'donchian_breakout'],
+    interval='60m', lookback=365 * 24, benchmark='BTC-USD', n_boot=10000,
+)
+```
+
+`summary_table` reads the strategy returns from `results/hybrid_walkforward_returns_{interval}.csv` and the benchmark prices from `Data/`. It returns one row of statistics per strategy, plus the bootstrap Sharpe samples. `lookback` is the walk-forward training window in bars: it sets the first out-of-sample day, so every strategy and the benchmark are measured over the same period.
+
+| Step | What it does |
+|---|---|
+| Daily returns | Per-trade returns are compounded by exit day; days without an exit count as zero |
+| Performance | Annual return, annual volatility, Sharpe (annualised with 365 days), max drawdown, Calmar, longest time underwater, skew, kurtosis |
+| Sharpe confidence interval | Circular block bootstrap of the daily returns, with 21-day blocks |
+| Sharpe difference | Paired block bootstrap of the strategy's Sharpe minus the benchmark's, resampling the same days for both |
+| Deflated Sharpe Ratio | Bailey & López de Prado (2014), with the number of trials set to the total number of grid combinations across the strategies |
+
+### 7. Results notebook
+
+`notebooks/strategy_comparison.ipynb` shows everything above in one place: cumulative returns, the statistics table, the Sharpe difference tests and the bootstrap Sharpe distributions, for each bar size. It does not re-run any backtest. It reads the CSVs in `results/`, so steps 4 and 5 must have been run for every bar size first. Its figures are saved as `results/oos_backtest_comparison_{interval}.png` and `results/bootstrap_sharpe_comparison_{interval}.png`.
 
 ### Adding a strategy
 
 1. Create `src/strategies/<name>.py` with a `master_<name>(ticker, data, interval, **params)` function returning `(df, trades, dates)`.
-2. Register it in `strat_params` and `param_grids` in both `grid_search.py` and `walkforward.py`, and add a rule to `constraints` if some combinations are invalid.
+2. Register it in `strat_params` and `param_grids` in `grid_search.py`, `walkforward.py` and `walkforward_hybrid.py`, and add a rule to `constraints` if some combinations are invalid.
+3. Add its name to `strategies` in `walkforward_hybrid.py` so that the hybrid considers it.
 
 ## Walk-forward results
 
-BTC-USD, Binance spot data, 10,000 USD starting capital with profits reinvested, 10 bps cost per side. Parameters are selected by in-sample Sharpe with a minimum of 20 trades.
+BTC-USD, 10,000 USD starting capital with profits reinvested, 10 bps cost per side. Parameters are selected by in-sample Sharpe among combinations with a minimum number of trades.
 
-| Bar size | Training window | Re-fit every |
-|---|---|---|
-| 5m | 90 days | 30 days |
-| 30m | 180 days | 30 days |
-| 60m | 365 days | 60 days |
+| Bar size | Data | Training window | Re-fit every | Min trades | Hybrid Sharpe gate | Out-of-sample from |
+|---|---|---|---|---|---|---|
+| 5m | Binance | 90 days | 30 days | 20 | 3.5 | 2018-04-02 |
+| 30m | Binance | 180 days | 30 days | 20 | 3.0 | 2018-07-01 |
+| 60m | Binance | 365 days | 60 days | 20 | 2.0 | 2019-01-03 |
+| 1d | yfinance | 730 days | 60 days | 10 | 1.5 | 2020-01-01 |
 
-Each figure shows the out-of-sample cumulative return of the four strategies, with a constant-growth benchmark as a dashed grey line.
+All runs end on 2026-09-30 (2026-10-02 for 1d bars). The out-of-sample periods start on different dates, so comparisons across bar sizes are not like-for-like.
 
-`walkforward.py` saves each figure to `results/walkforward_{interval}.png` just before `plt.show()`, with paths relative to the repository root:
+### Summary
 
-```python
-os.makedirs('results', exist_ok=True)
-plt.savefig(f'results/walkforward_{interval}.png', dpi=150, bbox_inches='tight')
-```
+Annualised Sharpe ratio of daily returns over the out-of-sample period:
 
-<!--
-PLOT PLACEHOLDERS
-Each image tag below points to a file in results/. Two ways to fill them in:
-  (a) Save the figure to the path shown and commit it. The tag then works as is.
-  (b) Edit this README on github.com and drag the image into the editor. GitHub uploads it
-      and inserts a line like ![image](https://github.com/user-attachments/assets/...).
-      Replace the placeholder tag with that line.
-Paths are relative to the repository root. To control the size, use HTML instead:
-  <img src="results/walkforward_5m.png" width="800">
--->
+| | 5m | 30m | 60m | 1d |
+|---|---|---|---|---|
+| BTC-USD buy-and-hold | 0.79 | 0.82 | 0.96 | 0.92 |
+| Momentum | -1.26 | 0.10 | 0.51 | 0.44 |
+| Vol-adjusted momentum | -0.60 | 0.41 | 0.39 | 1.23 |
+| EWMA trend | 0.42 | 0.06 | 0.68 | -0.02 |
+| Donchian breakout | -0.44 | 0.08 | 0.59 | 0.28 |
 
-### 5m bars
+- **No strategy beats buy-and-hold with statistical support.** 15 of the 16 strategy and bar-size combinations have a lower Sharpe than BTC-USD. The bootstrap confidence interval of the Sharpe difference is entirely below zero for 6 of them and straddles zero for the other 10.
+- **Results get worse on shorter bars.** On 5m bars, three of the four strategies lose money, with drawdowns of 87% to 99%.
+- **The one exception is vol-adjusted momentum on 1d bars.** Its Sharpe is 1.23 against 0.92, and its max drawdown is -23% against -77%. The Sharpe difference is still not distinguishable from zero (95% CI -0.43 to 0.99), and its Deflated Sharpe Ratio of 0.87 is below 0.95.
+- **Nothing survives the multiple-testing correction.** Every Deflated Sharpe Ratio is below 0.95.
 
-<!-- placeholder: results/BTC-USD_all_walkforward_5m.png -->
+The full tables, confidence intervals and bootstrap distributions are in `notebooks/strategy_comparison.ipynb`. The hybrid appears in the figures but is not yet in the statistics table.
+
+### Figures
+
+Each figure shows the out-of-sample cumulative return of the four strategies, the hybrid, and an equal-weight average of the four strategy curves. The dashed grey line is a constant 10% per year. The 5m, 30m and 60m figures also show BTC-USD buy-and-hold.
+
+The figures are saved by `walkforward_hybrid.py` as `results/{ticker}_all_walkforward_{interval}_{cost_bps}bps.png`, with paths relative to the repository root.
+
+#### 5m bars
+
 ![Walk-forward backtest, BTC-USD, 5m bars](results/BTC-USD_all_walkforward_5m_10.0bps.png)
 
-### 30m bars
+#### 30m bars
 
-<!-- placeholder: results/BTC-USD_all_walkforward_30m_10.0bps.png -->
 ![Walk-forward backtest, BTC-USD, 30m bars](results/BTC-USD_all_walkforward_30m_10.0bps.png)
 
-### 60m bars
+#### 60m bars
 
-<!-- placeholder: results/BTC-USD_all_walkforward_60m_10.0bps.png -->
 ![Walk-forward backtest, BTC-USD, 60m bars](results/BTC-USD_all_walkforward_60m_10.0bps.png)
 
-### 1d bars
+#### 1d bars
 
-<!-- placeholder: results/BTC-USD_all_walkforward_60m_10.0bps.png -->
-![Walk-forward backtest, BTC-USD, 60m bars](results/BTC-USD_all_walkforward_1d_10.0bps.png)
+![Walk-forward backtest, BTC-USD, 1d bars](results/BTC-USD_all_walkforward_1d_10.0bps.png)
 
 ## Assumptions and limitations
 
@@ -381,7 +446,9 @@ Paths are relative to the repository root. To control the size, use HTML instead
   $$r = \frac{p_{out} - p_{in}}{p_{in}} - c\,\frac{p_{in} + p_{out}}{p_{in}}$$
 
   with $c$ equal to `cost_bps` divided by 10,000, so 10 bps per side is about 20 bps per round trip. There is no additional slippage model: barrier and stop fills are assumed at the stated level unless the bar opens beyond it.
-- **Sharpe.** Computed from per-trade returns and annualised by the square root of the number of trades per year, with no risk-free rate. It is not a Sharpe ratio of daily returns, and it ignores time spent out of the market.
+- **Two Sharpe ratios.** The grid search and the walk-forward parameter selection use a Sharpe computed from per-trade returns, annualised by the square root of the number of trades per year. It is not a Sharpe ratio of daily returns, and it ignores time spent out of the market. `stats.py` and the notebook use the Sharpe of daily returns, annualised with 365 days and counting days in cash as zero. Neither subtracts a risk-free rate.
+- **Daily returns are realised, not marked to market.** A trade's whole return is booked on its exit day. The annual return is unaffected, but for trades that last several days the drawdowns are understated, and skew and kurtosis are distorted, which also feeds into the Deflated Sharpe Ratio.
+- **Deflated Sharpe Ratio.** The number of trials is the full grid count, which treats neighbouring parameter combinations as independent. The variance of the Sharpe ratios across trials is approximated by the estimation variance of the observed Sharpe. The value shown for the buy-and-hold benchmark uses the same trial count and is not a meaningful test, since buy-and-hold has no parameters.
 - **Equity curves** compound trade by trade and only move at trade exits.
 - **Open positions.** Strategies only emit closed trades. A position still open at the end of the data, or at the end of a walk-forward test window, is not counted.
 - **Scope.** Long-only, one asset at a time, full notional per trade, no leverage or funding. The walk-forward results cover BTC-USD only.
@@ -389,4 +456,4 @@ Paths are relative to the repository root. To control the size, use HTML instead
 
 ## Planned
 
-- Notebooks that display the data, more extensive walk-forward results, walk-forward that chooses best parameter-strategy pair, multi ticker strategies.
+- An MA-crossover strategy, a time-of-day overlay applied on top of the strategies, more extensive walk-forward results, multi-ticker strategies.

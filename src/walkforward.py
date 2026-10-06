@@ -416,27 +416,35 @@ if __name__ == '__main__':
     plt.show()
 
     runs = {
-    'accurate':          (accurate_pnl_5m, accurate_cum_returns_5m),
-    'vol_adjusted':      (vol_pnl_5m,      vol_cum_returns_5m),
-    'trend_reversal':    (trend_pnl_5m,    trend_cum_returns_5m),
-    'donchian_breakout': (donchian_pnl_5m, donchian_cum_returns_5m),
+    'accurate':          (accurate_pnl_5m, accurate_cum_returns_5m, accurate_returns_5m),
+    'vol_adjusted':      (vol_pnl_5m,      vol_cum_returns_5m, vol_returns_5m),
+    'trend_reversal':    (trend_pnl_5m,    trend_cum_returns_5m, trend_returns_5m),
+    'donchian_breakout': (donchian_pnl_5m, donchian_cum_returns_5m, donchian_returns_5m),
 }
     # pnl is a plain array, one entry per trade; give it the same exit-time index as cum_returns
     pnl_df = pd.concat(
         {name: pd.Series(pnl, index=cum.index).groupby(level=0).sum()
-         for name, (pnl, cum) in runs.items()},
+         for name, (pnl, cum, _) in runs.items()},
         axis=1,
     ).sort_index()
 
     cum_df = pd.concat(
-        {name: cum.groupby(level=0).last() for name, (_, cum) in runs.items()},
+        {name: cum.groupby(level=0).last() for name, (_, cum, _) in runs.items()},
         axis=1,
     ).sort_index()
 
-    pnl_df.index.name = cum_df.index.name = 'exit_time'
+    ret_df = pd.concat(
+        {name: ret.groupby(level=0).apply(lambda r: (1 + r).prod() - 1)
+         for name, (_, _, ret) in runs.items()},
+        axis=1,
+    ).sort_index()
+
+    pnl_df.index.name = cum_df.index.name = ret_df.index.name = 'exit_time'
 
     pnl_df.to_csv(f'results/walkforward_pnl_{interval}.csv')
     cum_df.to_csv(f'results/walkforward_cum_returns_{interval}.csv')
+    ret_df.to_csv(f'results/walkforward_returns_{interval}.csv')
+
 
 
 # %%
@@ -525,27 +533,34 @@ if __name__ == '__main__':
     plt.show()
 
     runs = {
-    'accurate':          (accurate_pnl_30m, accurate_cum_returns_30m),
-    'vol_adjusted':      (vol_pnl_30m,      vol_cum_returns_30m),
-    'trend_reversal':    (trend_pnl_30m,    trend_cum_returns_30m),
-    'donchian_breakout': (donchian_pnl_30m, donchian_cum_returns_30m),
-}
+        'accurate':          (accurate_pnl_30m, accurate_cum_returns_30m, accurate_returns_30m),
+        'vol_adjusted':      (vol_pnl_30m,      vol_cum_returns_30m, vol_returns_30m),
+        'trend_reversal':    (trend_pnl_30m,    trend_cum_returns_30m, trend_returns_30m),
+        'donchian_breakout': (donchian_pnl_30m, donchian_cum_returns_30m, donchian_returns_30m),
+    }
     # pnl is a plain array, one entry per trade; give it the same exit-time index as cum_returns
     pnl_df = pd.concat(
         {name: pd.Series(pnl, index=cum.index).groupby(level=0).sum()
-         for name, (pnl, cum) in runs.items()},
+            for name, (pnl, cum, _) in runs.items()},
         axis=1,
     ).sort_index()
 
     cum_df = pd.concat(
-        {name: cum.groupby(level=0).last() for name, (_, cum) in runs.items()},
+        {name: cum.groupby(level=0).last() for name, (_, cum, _) in runs.items()},
         axis=1,
     ).sort_index()
 
-    pnl_df.index.name = cum_df.index.name = 'exit_time'
+    ret_df = pd.concat(
+        {name: ret.groupby(level=0).apply(lambda r: (1 + r).prod() - 1)
+            for name, (_, _, ret) in runs.items()},
+        axis=1,
+    ).sort_index()
+
+    pnl_df.index.name = cum_df.index.name = ret_df.index.name = 'exit_time'
 
     pnl_df.to_csv(f'results/walkforward_pnl_{interval}.csv')
     cum_df.to_csv(f'results/walkforward_cum_returns_{interval}.csv')
+    ret_df.to_csv(f'results/walkforward_returns_{interval}.csv')
 
 # %%
 
@@ -637,27 +652,34 @@ if __name__ == '__main__':
     plt.show()
 
     runs = {
-    'accurate':          (accurate_pnl_60m, accurate_cum_returns_60m),
-    'vol_adjusted':      (vol_pnl_60m,      vol_cum_returns_60m),
-    'trend_reversal':    (trend_pnl_60m,    trend_cum_returns_60m),
-    'donchian_breakout': (donchian_pnl_60m, donchian_cum_returns_60m),
+    'accurate':          (accurate_pnl_60m, accurate_cum_returns_60m, accurate_returns_60m),
+    'vol_adjusted':      (vol_pnl_60m,      vol_cum_returns_60m, vol_returns_60m),
+    'trend_reversal':    (trend_pnl_60m,    trend_cum_returns_60m, trend_returns_60m),
+    'donchian_breakout': (donchian_pnl_60m, donchian_cum_returns_60m, donchian_returns_60m),
 }
     # pnl is a plain array, one entry per trade; give it the same exit-time index as cum_returns
     pnl_df = pd.concat(
         {name: pd.Series(pnl, index=cum.index).groupby(level=0).sum()
-         for name, (pnl, cum) in runs.items()},
+         for name, (pnl, cum, _) in runs.items()},
         axis=1,
     ).sort_index()
 
     cum_df = pd.concat(
-        {name: cum.groupby(level=0).last() for name, (_, cum) in runs.items()},
+        {name: cum.groupby(level=0).last() for name, (_, cum, _) in runs.items()},
         axis=1,
     ).sort_index()
 
-    pnl_df.index.name = cum_df.index.name = 'exit_time'
+    ret_df = pd.concat(
+        {name: ret.groupby(level=0).apply(lambda r: (1 + r).prod() - 1)
+         for name, (_, _, ret) in runs.items()},
+        axis=1,
+    ).sort_index()
+
+    pnl_df.index.name = cum_df.index.name = ret_df.index.name = 'exit_time'
 
     pnl_df.to_csv(f'results/walkforward_pnl_{interval}.csv')
     cum_df.to_csv(f'results/walkforward_cum_returns_{interval}.csv')
+    ret_df.to_csv(f'results/walkforward_returns_{interval}.csv')
 
 
 # %%
@@ -750,24 +772,31 @@ if __name__ == '__main__':
     plt.show()
 
     runs = {
-    'accurate':          (accurate_pnl_1d, accurate_cum_returns_1d),
-    'vol_adjusted':      (vol_pnl_1d,      vol_cum_returns_1d),
-    'trend_reversal':    (trend_pnl_1d,    trend_cum_returns_1d),
-    'donchian_breakout': (donchian_pnl_1d, donchian_cum_returns_1d),
-}
+        'accurate':          (accurate_pnl_1d, accurate_cum_returns_1d, accurate_returns_1d),
+        'vol_adjusted':      (vol_pnl_1d,      vol_cum_returns_1d, vol_returns_1d),
+        'trend_reversal':    (trend_pnl_1d,    trend_cum_returns_1d, trend_returns_1d),
+        'donchian_breakout': (donchian_pnl_1d, donchian_cum_returns_1d, donchian_returns_1d),
+    }
     # pnl is a plain array, one entry per trade; give it the same exit-time index as cum_returns
     pnl_df = pd.concat(
         {name: pd.Series(pnl, index=cum.index).groupby(level=0).sum()
-         for name, (pnl, cum) in runs.items()},
+            for name, (pnl, cum, _) in runs.items()},
         axis=1,
     ).sort_index()
 
     cum_df = pd.concat(
-        {name: cum.groupby(level=0).last() for name, (_, cum) in runs.items()},
+        {name: cum.groupby(level=0).last() for name, (_, cum, _) in runs.items()},
         axis=1,
     ).sort_index()
 
-    pnl_df.index.name = cum_df.index.name = 'exit_time'
+    ret_df = pd.concat(
+        {name: ret.groupby(level=0).apply(lambda r: (1 + r).prod() - 1)
+            for name, (_, _, ret) in runs.items()},
+        axis=1,
+    ).sort_index()
+
+    pnl_df.index.name = cum_df.index.name = ret_df.index.name = 'exit_time'
 
     pnl_df.to_csv(f'results/walkforward_pnl_{interval}.csv')
     cum_df.to_csv(f'results/walkforward_cum_returns_{interval}.csv')
+    ret_df.to_csv(f'results/walkforward_returns_{interval}.csv')

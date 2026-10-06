@@ -374,6 +374,9 @@ if __name__ == '__main__':
 
     
 # %%
+    interval = '5m'
+    raw_data = get_data_binance(interval=interval)
+    
     # load the per-strategy cum returns saved earlier
     cum_df = pd.read_csv(f'results/walkforward_cum_returns_{interval}.csv',
                          index_col='exit_time', parse_dates=True)
@@ -385,6 +388,15 @@ if __name__ == '__main__':
     combined_df.index.name = 'exit_time'
 
     combined_df.to_csv(f'results/hybrid_walkforward_cum_returns_{interval}.csv')
+
+    ret_df = pd.read_csv(f'results/walkforward_returns_{interval}.csv',
+                         index_col='exit_time', parse_dates=True)
+    ret_df.index = pd.to_datetime(ret_df.index, utc=True)
+
+    hybrid_ret = hybrid_returns_5m.groupby(level=0).apply(lambda r: (1 + r).prod() - 1).rename('hybrid')
+    combined_ret_df = ret_df.join(hybrid_ret, how='outer').sort_index()
+    combined_ret_df.index.name = 'exit_time'
+    combined_ret_df.to_csv(f'results/hybrid_walkforward_returns_{interval}.csv')
 
     # plot everything together
     labels = {
@@ -410,6 +422,7 @@ if __name__ == '__main__':
         style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
         combined_df[col].dropna().plot(label=labels.get(col, col), **style)
     ew_static.plot(label = 'Equal weight', lw=2.2)
+    (raw_data[ticker]['Close'].pct_change() + 1).cumprod().plot(label=ticker, lw=1)
     pd.Series(rfr ** years, index=bench_idx).plot(
         label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
@@ -452,6 +465,9 @@ if __name__ == '__main__':
 
 
 # %%
+    interval = '30m'
+    raw_data = get_data_binance(interval=interval)
+
     # load the per-strategy cum returns saved earlier
     cum_df = pd.read_csv(f'results/walkforward_cum_returns_{interval}.csv',
                          index_col='exit_time', parse_dates=True)
@@ -463,6 +479,15 @@ if __name__ == '__main__':
     combined_df.index.name = 'exit_time'
 
     combined_df.to_csv(f'results/hybrid_walkforward_cum_returns_{interval}.csv')
+
+    ret_df = pd.read_csv(f'results/walkforward_returns_{interval}.csv',
+                         index_col='exit_time', parse_dates=True)
+    ret_df.index = pd.to_datetime(ret_df.index, utc=True)
+
+    hybrid_ret = hybrid_returns_30m.groupby(level=0).apply(lambda r: (1 + r).prod() - 1).rename('hybrid')
+    combined_ret_df = ret_df.join(hybrid_ret, how='outer').sort_index()
+    combined_ret_df.index.name = 'exit_time'
+    combined_ret_df.to_csv(f'results/hybrid_walkforward_returns_{interval}.csv')
 
     # plot everything together
     labels = {
@@ -488,6 +513,7 @@ if __name__ == '__main__':
         style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
         combined_df[col].dropna().plot(label=labels.get(col, col), **style)
     ew_static.plot(label = 'Equal weight', lw=2.2)
+    (raw_data[ticker]['Close'].pct_change() + 1).cumprod().plot(label=ticker, lw=1)
     pd.Series(rfr ** years, index=bench_idx).plot(
         label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
@@ -533,6 +559,9 @@ if __name__ == '__main__':
     )
 
 # %%
+    interval = '60m'
+    raw_data = get_data_binance(interval=interval)
+
     # load the per-strategy cum returns saved earlier
     cum_df = pd.read_csv(f'results/walkforward_cum_returns_{interval}.csv',
                          index_col='exit_time', parse_dates=True)
@@ -544,6 +573,15 @@ if __name__ == '__main__':
     combined_df.index.name = 'exit_time'
 
     combined_df.to_csv(f'results/hybrid_walkforward_cum_returns_{interval}.csv')
+
+    ret_df = pd.read_csv(f'results/walkforward_returns_{interval}.csv',
+                         index_col='exit_time', parse_dates=True)
+    ret_df.index = pd.to_datetime(ret_df.index, utc=True)
+
+    hybrid_ret = hybrid_returns_60m.groupby(level=0).apply(lambda r: (1 + r).prod() - 1).rename('hybrid')
+    combined_ret_df = ret_df.join(hybrid_ret, how='outer').sort_index()
+    combined_ret_df.index.name = 'exit_time'
+    combined_ret_df.to_csv(f'results/hybrid_walkforward_returns_{interval}.csv')
 
     # plot everything together
     labels = {
@@ -569,6 +607,7 @@ if __name__ == '__main__':
         style = {'lw': 2.2, 'color': 'black'} if col == 'hybrid' else {'lw': 1.2}
         combined_df[col].dropna().plot(label=labels.get(col, col), **style)
     ew_static.plot(label = 'Equal weight', lw=2.2)
+    (raw_data[ticker]['Close'].pct_change() + 1).cumprod().plot(label=ticker, lw=1)
     pd.Series(rfr ** years, index=bench_idx).plot(
         label=f'{int((rfr - 1) * 100)}%/yr benchmark', ls='--', color='grey')
     plt.legend()
@@ -628,6 +667,15 @@ if __name__ == '__main__':
     combined_df.index.name = 'exit_time'
 
     combined_df.to_csv(f'results/hybrid_walkforward_cum_returns_{interval}.csv')
+
+    ret_df = pd.read_csv(f'results/walkforward_returns_{interval}.csv',
+                         index_col='exit_time', parse_dates=True)
+    ret_df.index = pd.to_datetime(ret_df.index, utc=True)
+
+    hybrid_ret = hybrid_returns_1d.groupby(level=0).apply(lambda r: (1 + r).prod() - 1).rename('hybrid')
+    combined_ret_df = ret_df.join(hybrid_ret, how='outer').sort_index()
+    combined_ret_df.index.name = 'exit_time'
+    combined_ret_df.to_csv(f'results/hybrid_walkforward_returns_{interval}.csv')
 
     # plot everything together
     labels = {
